@@ -1,4 +1,4 @@
-This repository contains every materials for my project "Introduction to Extrememum Seeking Control" under supervisor Juan Javier Palacios Roman. 
+This repo contains documentation and code for my research project "Extremum Seeking Control for D–T Fuel Ratio Optimization" under the supervision of Juan Javier Palacios Roman.
 
 The goals of this project:
 1. <DONE>    Understand the purpose and fundamentals of Extrememum Seeking Control (ESC), and from there build a functional ESC algorithm.
