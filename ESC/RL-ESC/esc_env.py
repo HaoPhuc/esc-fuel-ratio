@@ -1,5 +1,5 @@
 """
-Gymnasium environment for RL-based extremum seeking of the D-T fuel ratio.
+Gymnasium environment for RL-based extremum seeking control of the D-T fuel ratio.
 
 Plant (same physics as ESC.m):
     dn_D/dt = -a_D * n_D + (1 - r) * S
@@ -7,46 +7,42 @@ Plant (same physics as ESC.m):
     S = PI controller keeping n_D + n_T at total_density_reference
     P = n_D * n_T   (objective to maximize)
 
-r is the TRITIUM fraction of the fuel, consistent with the initial conditions
-and ideal_ratio = a_T / (a_T + a_D) in main_fuelratio.m.
+r is the tritium fraction of the fuel
 
 Two modes:
-    "direct" : RL replaces ESC. Action = change in r_hat per decision step.
-    "tune"   : classical ESC runs inside; RL sets (amplitude, frequency, gain).
-
-The agent never sees ideal_ratio (model-free). It is only reported in `info`.
+    Direct: RL replaces ESC. Action = change in r_hat per decision step.
+    Tune: classical ESC runs inside; RL sets (amplitude, frequency, gain).
 """
 import math
-
 import gymnasium as gym
 import numpy as np
 from gymnasium import spaces
 
 
-class ESCPlasmaEnv(gym.Env):
+class ESCfuelratioEnv(gym.Env):
     metadata = {"render_modes": []}
 
     def __init__(
         self,
         mode="direct",
-        dt=0.01,                    # plant simulation step [s]
-        control_dt=1.0,             # time between agent decisions [s]
-        episode_time=200.0,         # episode length [s]
-        history_len=4,              # past (r_hat, P) pairs in the observation
-        max_delta_r=0.05,           # direct mode: max change of r_hat per decision
-        action_penalty=0.0,         # direct mode: penalty on action^2
-        initial_ratio=None,         # None -> random in [0.05, 0.95] each episode
-        decay_time_spread=0.1,      # +- spread on 1.71 s and 1.66 s decay times
-        amp_range=(0.01, 0.5),      # tune mode: dither amplitude range
-        freq_range=(0.01, 0.5),     # tune mode: dither frequency range [Hz]
-        gain_range=(1e-5, 1e-2),    # tune mode: optimizer gain range (log scale)
+        dt=0.01, #plant simulation step
+        decision_dt=1.0, #time between agent decisions
+        episode_time=100.0, #episode length
+        history_len=4, #past (r_hat, P) pairs in the observation
+        max_delta_r=0.05, #direct mode: max change of r_hat per decision
+        action_penalty=0.0, #direct mode: penalty on action^2
+        initial_ratio=None, #None -> random in [0.05, 0.95] each episode
+        decay_time_spread=0.1, #+- spread on 1.71 s and 1.66 s decay times
+        gain_range=(1e-5, 5), #tune mode: optimizer gain range (log scale)
+        amp_range=(1e-10, 1), #tune mode: dither amplitude range
+        freq_range=(1e-10, 10), #tune mode: dither frequency range
     ):
         super().__init__()
         assert mode in ("direct", "tune")
         self.mode = mode
         self.dt = dt
-        self.steps_per_action = int(round(control_dt / dt))
-        self.max_steps = int(round(episode_time / control_dt))
+        self.steps_per_action = int(round(decision_dt / dt))
+        self.max_steps = int(round(episode_time / decision_dt))
         self.history_len = history_len
         self.max_delta_r = max_delta_r
         self.action_penalty = action_penalty
@@ -59,8 +55,8 @@ class ESCPlasmaEnv(gym.Env):
         # Density controller (same as ESC.m)
         self.Kp = 3.129
         self.Ki = 2.482
-        self.ref = 11.5            # e19 removed
-        self.greenwald = 11.9      # e19 removed
+        self.ref = 11.5            # e19 removed for numerical stability
+        self.greenwald = 11.9      # e19 removed for numerical stability
         self.P_ref = 0.25 * self.ref ** 2   # max P at n_D = n_T = ref/2
 
         if mode == "direct":
@@ -68,12 +64,12 @@ class ESCPlasmaEnv(gym.Env):
             obs_dim = 2 * history_len
         else:
             self.action_space = spaces.Box(-1.0, 1.0, shape=(3,), dtype=np.float32)
-            obs_dim = 2 * history_len + 4   # + amp, freq, gain, gradient estimate xi
+            obs_dim = 2 * history_len + 4 #+ amp, freq, gain, gradient estimate xi
         self.obs_low = np.full(obs_dim, -3.0, dtype=np.float32)
         self.obs_high = np.full(obs_dim, 3.0, dtype=np.float32)
         self.observation_space = spaces.Box(self.obs_low, self.obs_high, dtype=np.float32)
 
-    # ------------------------------------------------------------------ helpers
+    # Helpers
     def _map(self, a, lo, hi):
         return lo + (float(a) + 1.0) * 0.5 * (hi - lo)
 
@@ -97,7 +93,7 @@ class ESCPlasmaEnv(gym.Env):
     def _set_dither_frequency(self, freq):
         self.freq = freq
         self.omega = 2 * math.pi * freq
-        wc = self.omega / math.pi                 # same cutoff choice as ESC.m
+        wc = self.omega / math.pi #same cutoff choice as ESC.m
         self.p_filt = math.exp(-wc * self.dt)     # ZOH pole of both filters
 
     def _get_obs(self):
@@ -145,7 +141,7 @@ class ESCPlasmaEnv(gym.Env):
         self.amp, self.gain = 0.1, 4e-4
         self._set_dither_frequency(0.1)
         P0 = self.nD * self.nT
-        self.hp_x_prev = P0       # start HP filter at P0 to avoid an initial spike
+        self.hp_x_prev = P0 #start HP filter at P0 to avoid an initial spike
         self.hp_y_prev = 0.0
         self.lp_x_prev = 0.0
         self.lp_y_prev = 0.0
@@ -236,5 +232,5 @@ if __name__ == "__main__":
     from gymnasium.utils.env_checker import check_env
 
     for m in ("direct", "tune"):
-        check_env(ESCPlasmaEnv(mode=m), skip_render_check=True)
+        check_env(ESCfuelratioEnv(mode=m), skip_render_check=True)
         print(f"check_env passed: {m}")
