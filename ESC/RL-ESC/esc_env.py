@@ -5,13 +5,8 @@ Plant (same physics as ESC.m):
     dn_D/dt = -a_D * n_D + (1 - r) * S
     dn_T/dt = -a_T * n_T + r * S
     S = PI controller keeping n_D + n_T at total_density_reference
-    P = n_D * n_T   (objective to maximize)
-
-r is the tritium fraction of the fuel
-
-Two modes:
-    Direct: RL replaces ESC. Action = change in r_hat per decision step.
-    Tune: classical ESC runs inside; RL sets (amplitude, frequency, gain).
+    P = n_D * n_T (objective to maximize)
+    r = tritium fraction of the fuel
 """
 import math
 import gymnasium as gym
@@ -110,7 +105,7 @@ class ESCfuelratioEnv(gym.Env):
             obs = np.concatenate([hist, extra])
         return np.clip(obs, self.obs_low, self.obs_high)
 
-    # --------------------------------------------------------------- gym API
+    # Gym API
     def reset(self, seed=None, options=None):
         super().reset(seed=seed)
         rng = self.np_random
