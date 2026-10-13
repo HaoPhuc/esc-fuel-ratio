@@ -94,8 +94,8 @@ for k = 1:n_steps
     S_total = max(S_total, 0);
 
     % Fuel pumping & Update densities
-    u_D = r * S_total;
-    u_T = (1 - r) * S_total;
+    u_T = r * S_total;
+    u_D = (1 - r) * S_total;
     nD = Ad_D * nD + Bd_D * u_D;
     nT = Ad_T * nT + Bd_T * u_T;
 

@@ -6,9 +6,9 @@ results = table(Size = [0 5], ...
     VariableTypes = {'double','double','double','logical','double'}, ...
     VariableNames = {'optimizer_gain','dither_amplitude','dither_frequency','converged','convergence_time'});
 %% Batch sweep settings
-combinations = 555000; % total random sets to test
+combinations = 200000; % total random sets to test
 save_every = 5000; % add results to CSV every N combinations
-csv_filename = 'STO-const_decay-1m.csv';
+csv_filename = 'STO-const_decay-200k.csv';
 
 %% Simulation settings
 % Time
@@ -125,8 +125,8 @@ function [converged, convergence_time] = esc_trial(dither_amplitude, dither_freq
         S_total = max(S_total, 0);
 
         % Fuel pumping & Update densities
-        u_D = r * S_total;
-        u_T = (1 - r) * S_total;
+        u_T = r * S_total;
+        u_D = (1 - r) * S_total;
         nD = Ad_D*nD + Bd_D*u_D;
         nT = Ad_T*nT + Bd_T*u_T;
 
