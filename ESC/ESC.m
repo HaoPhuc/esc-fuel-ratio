@@ -36,7 +36,7 @@ n_T_dynamics = ss(-n_T_decay_rate, 1, 1, 0);
 
 % Discretize time & Extract Ad and Bd for simulating
 n_D_dynamics_discretized = c2d(n_D_dynamics, dt); % Ts = dt
-n_T_dynamics_discretized = c2d(n_T_dynamics, dt); % nT​[k] = Ad​_T*nT​[k-1] + Bd​_T*uT​[k-1]
+n_T_dynamics_discretized = c2d(n_T_dynamics, dt); % nT[k] = Ad_T*nT[k-1] + Bd_T*uT[k-1]
 [Ad_D, Bd_D, ~, ~] = ssdata(n_D_dynamics_discretized);
 [Ad_T, Bd_T, ~, ~] = ssdata(n_T_dynamics_discretized);
 
@@ -69,12 +69,72 @@ n_steps = length(t_vec);
 P_vec = nan(n_steps,1);
 r_vec = nan(n_steps,1);
 r_hat_vec = nan(n_steps,1);
+nD_vec = nan(n_steps,1); % for plotting
+nT_vec = nan(n_steps,1); % for plotting
 
 %% Live plotting
-figure('Position',[200 200 1200 350]);
-subplot(1,3,1); h_Pt = plot(nan,nan,'b-'); xlabel('t'); ylabel('P'); title('P(t)'); grid on;
-subplot(1,3,2); h_Pr = plot(nan,nan,'b-'); hold on; xline(ideal_ratio,'c--'); xlabel('r'); ylabel('P'); title('P(r)'); grid on;
-subplot(1,3,3); h_rt = plot(nan,nan,'b-'); hold on; yline(ideal_ratio,'c--'); xlabel('t'); ylabel('r'); title('r(t)'); grid on;
+figure('Position',[100 100 1300 650]);
+tiledlayout(3, 3);
+
+% n_D + n_T
+nexttile(1); hold on; box on;
+h_sum = plot(nan, nan, 'b-');
+yline(total_density_reference, 'c--');
+yline(greenwald_density_limit, 'r--');
+ylabel('$n_D + n_T$', 'Interpreter','latex');
+xlim([0 tend]);
+legend("$n_D + n_T$", "$n_D + n_T$ reference", "greenwald density", 'Interpreter','latex', 'Location','southeast');
+
+% n_T
+nexttile(4); hold on; box on;
+h_nT = plot(nan, nan, 'b-');
+h_nT_ref = plot(nan, nan, 'c--');
+ylabel('$n_T$', 'Interpreter','latex');
+xlim([0 tend]);
+legend("$n_T$", "$n_T$ reference", 'Interpreter','latex', 'Location','southeast');
+
+% n_D
+nexttile(7); hold on; box on;
+h_nD = plot(nan, nan, 'b-');
+h_nD_ref = plot(nan, nan, 'c--');
+ylabel('$n_D$', 'Interpreter','latex');
+xlabel('$t$ [s]', 'Interpreter','latex');
+xlim([0 tend]);
+legend("$n_D$", "$n_D$ reference", 'Interpreter','latex', 'Location','southeast');
+
+% n_D * n_T
+nexttile(2); hold on; box on;
+h_P = plot(nan, nan, 'b-');
+yline(0.25 * total_density_reference^2, 'c--');
+ylabel('$n_D \times n_T$', 'Interpreter','latex');
+xlim([0 tend]);
+legend("$n_D \times n_T$", "ideal $n_D \times n_T$", 'Interpreter','latex', 'Location','southeast');
+
+% r
+nexttile(5); hold on; box on;
+h_r = plot(nan, nan, 'b-');
+yline(ideal_ratio, 'c--');
+ylabel('$r$', 'Interpreter','latex');
+xlim([0 tend]);
+legend("current ratio", "ideal ratio", 'Interpreter','latex', 'Location','southeast');
+
+% r_hat
+nexttile(8); hold on; box on;
+h_rhat = plot(nan, nan, 'b-');
+yline(ideal_ratio, 'c--');
+ylabel('$\hat{r}$', 'Interpreter','latex');
+xlabel('$t$ [s]', 'Interpreter','latex');
+xlim([0 tend]);
+legend("nominal ratio", "ideal ratio", 'Interpreter','latex', 'Location','southeast');
+
+% n_D * n_T vs r_hat
+nexttile(3, [3 1]); hold on; box on;
+h_P_rhat = plot(nan, nan, 'b-');
+xline(ideal_ratio, 'c--');
+yline(0.25 * total_density_reference^2, 'c:');
+xlabel('$\hat{r}$', 'Interpreter','latex');
+ylabel('$n_D \times n_T$', 'Interpreter','latex');
+legend("$n_D \times n_T$", "ideal ratio", "ideal $n_D \times n_T$", 'Interpreter','latex', 'Location','southeast');
 
 plot_update_every = 50;  % update the figure every N steps (for speed)
 
@@ -115,14 +175,20 @@ for k = 1:n_steps
     P_vec(k) = P;
     r_vec(k) = r;
     r_hat_vec(k) = r_hat;
+    nD_vec(k) = nD;
+    nT_vec(k) = nT;
 
     if mod(k, plot_update_every) == 0 || k == n_steps
-        set(h_Pt, 'XData', t_vec(1:k), 'YData', P_vec(1:k));
-        set(h_Pr, 'XData', r_vec(1:k), 'YData', P_vec(1:k));
-        set(h_rt, 'XData', t_vec(1:k), 'YData', r_vec(1:k));
-        subplot(1,3,1); axis tight;
-        subplot(1,3,2); axis tight;
-        subplot(1,3,3); axis tight;
+        tk = t_vec(1:k);
+        set(h_sum,    'XData', tk, 'YData', nD_vec(1:k) + nT_vec(1:k));
+        set(h_nT,     'XData', tk, 'YData', nT_vec(1:k));
+        set(h_nT_ref, 'XData', tk, 'YData', r_vec(1:k) * total_density_reference);
+        set(h_nD,     'XData', tk, 'YData', nD_vec(1:k));
+        set(h_nD_ref, 'XData', tk, 'YData', (1 - r_vec(1:k)) * total_density_reference);
+        set(h_P,      'XData', tk, 'YData', P_vec(1:k));
+        set(h_r,      'XData', tk, 'YData', r_vec(1:k));
+        set(h_rhat,   'XData', tk, 'YData', r_hat_vec(1:k));
+        set(h_P_rhat, 'XData', r_hat_vec(1:k), 'YData', P_vec(1:k));
         drawnow;
     end
 end
