@@ -7,9 +7,9 @@ results = table(Size = [0 11], ...
     VariableNames = {'optimizer_gain','dither_amplitude','dither_frequency','r_ideal_0','lambda_r_ideal', ...
                      'energy_ESC','energy_const','energy_max','choose_ESC','converged','convergence_time'});
 %% Batch sweep settings
-combinations = 200000; % total random sets to test
+combinations = 10000; % total random sets to test
 save_every = 5000; % add results to CSV every N combinations
-csv_filename = 'OTO-ESC-200k.csv';
+csv_filename = 'OTO-ESC-10k.csv';
 
 %% Simulation settings
 % Time
