@@ -29,6 +29,12 @@ integral_gain = 2.482;
 % Ideal fuel ratio
 ideal_ratio = n_T_decay_rate / (n_T_decay_rate + n_D_decay_rate);
 
+% Convergence bounds
+convergence_fraction = 0.05; % within 5% of ideal ratio
+ratio_lower_bound = (1 - convergence_fraction) * ideal_ratio;
+ratio_upper_bound = (1 + convergence_fraction) * ideal_ratio;
+bound_label = sprintf('$\\pm %g\\%%$ bound', convergence_fraction*100);
+
 % Calculate transfer function of dynamics and discretize
 % State-space model for densities 
 n_D_dynamics = ss(-n_D_decay_rate, 1, 1, 0); % dx/dt = A*x + B*u   ;   y = C*x + D*u
@@ -114,27 +120,33 @@ legend("$n_D \times n_T$", "ideal $n_D \times n_T$", 'Interpreter','latex', 'Loc
 nexttile(5); hold on; box on;
 h_r = plot(nan, nan, 'b-');
 yline(ideal_ratio, 'c--');
+yline(ratio_lower_bound, 'm:');
+yline(ratio_upper_bound, 'm:', 'HandleVisibility', 'off');
 ylabel('$r$', 'Interpreter','latex');
 xlim([0 tend]);
-legend("current ratio", "ideal ratio", 'Interpreter','latex', 'Location','southeast');
+legend("current ratio", "ideal ratio", bound_label, 'Interpreter','latex', 'Location','southeast');
 
 % r_hat
 nexttile(8); hold on; box on;
 h_rhat = plot(nan, nan, 'b-');
 yline(ideal_ratio, 'c--');
+yline(ratio_lower_bound, 'm:');
+yline(ratio_upper_bound, 'm:', 'HandleVisibility', 'off');
 ylabel('$\hat{r}$', 'Interpreter','latex');
 xlabel('$t$ [s]', 'Interpreter','latex');
 xlim([0 tend]);
-legend("nominal ratio", "ideal ratio", 'Interpreter','latex', 'Location','southeast');
+legend("nominal ratio", "ideal ratio", bound_label, 'Interpreter','latex', 'Location','southeast');
 
 % n_D * n_T vs r_hat
 nexttile(3, [3 1]); hold on; box on;
 h_P_rhat = plot(nan, nan, 'b-');
 xline(ideal_ratio, 'c--');
+xline(ratio_lower_bound, 'm:');
+xline(ratio_upper_bound, 'm:', 'HandleVisibility', 'off');
 yline(0.25 * total_density_reference^2, 'c:');
 xlabel('$\hat{r}$', 'Interpreter','latex');
 ylabel('$n_D \times n_T$', 'Interpreter','latex');
-legend("$n_D \times n_T$", "ideal ratio", "ideal $n_D \times n_T$", 'Interpreter','latex', 'Location','southeast');
+legend("$n_D \times n_T$", "ideal ratio", bound_label, "ideal $n_D \times n_T$", 'Interpreter','latex', 'Location','southeast');
 
 plot_update_every = 50;  % update the figure every N steps (for speed)
 
