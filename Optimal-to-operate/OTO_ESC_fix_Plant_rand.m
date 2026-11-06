@@ -7,14 +7,14 @@ results = table(Size = [0 11], ...
     VariableNames = {'optimizer_gain','dither_amplitude','dither_frequency','r_ideal_0','lambda_r_ideal', ...
                      'energy_ESC','energy_const','energy_max','choose_ESC','converged','convergence_time'});
 %% Batch sweep settings
-combinations = 200000; % total random sets to test
+combinations = 100000; % total random sets to test
 save_every = 50000; % add results to CSV every N combinations
-csv_filename = 'OTO-ESC-fixed.csv';
+csv_filename = 'OTO-ESC_fix-1_0.2_6-100kshots.csv';
 
 %% ESC parameters (constant for every trial — choose them here)
-optimizer_gain   = 4e-4;
-dither_amplitude = 0.1;
-dither_frequency = 0.1;
+optimizer_gain   = 1;
+dither_amplitude = 0.2;
+dither_frequency = 6;
 
 %% Simulation settings
 % Time
