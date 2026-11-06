@@ -9,7 +9,7 @@ results = table(Size = [0 11], ...
 %% Batch sweep settings
 combinations = 200000; % total random sets to test
 save_every = 50000; % add results to CSV every N combinations
-csv_filename = 'OTO-ESC-200k.csv';
+csv_filename = 'OTO-200kshots.csv';
 
 %% Simulation settings
 % Time

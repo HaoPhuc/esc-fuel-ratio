@@ -7,9 +7,9 @@ results = table(Size = [0 11], ...
     VariableNames = {'optimizer_gain','dither_amplitude','dither_frequency','r_ideal_0','lambda_r_ideal', ...
                      'energy_ESC','energy_const','energy_max','choose_ESC','converged','convergence_time'});
 %% Batch sweep settings
-combinations = 1000; % total random sets to test
-save_every = 500; % add results to CSV every N combinations
-csv_filename = 'OTO-Plant_fix-0.45_-0.002-1kshots.csv';
+combinations = 100000; % total random sets to test
+save_every = 50000; % add results to CSV every N combinations
+csv_filename = 'OTO-Plant_fix-0.45_-0.002-100kshots.csv';
 
 %% Plant parameters (constant for every trial — choose them here)
 % Ideal fuel ratio: r_ideal(t) = r_ideal_0 * exp(lambda_r_ideal * t)
