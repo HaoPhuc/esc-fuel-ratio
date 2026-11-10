@@ -2,9 +2,9 @@
 clc; clear all; close all;
 
 %% ESC parameters
-dither_amplitude = 0.1;
-dither_frequency = 0.1;
-optimizer_gain   = 4e-4;
+optimizer_gain   = 1;
+dither_amplitude = 0.2;
+dither_frequency = 6;
 
 dither_omega = dither_frequency * 2 * pi;
 highpass_cutoff_omega = dither_omega / pi;
