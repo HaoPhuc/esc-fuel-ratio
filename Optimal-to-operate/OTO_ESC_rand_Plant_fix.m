@@ -13,8 +13,8 @@ csv_filename = 'OTO-Plant_fix-0.4625_0.0015-100kshots.csv';
 
 %% Plant parameters (constant for every trial — choose them here)
 % Ideal fuel ratio: r_ideal(t) = r_ideal_0 * exp(lambda_r_ideal * t)
-r_ideal_0      = 0.4625;
-lambda_r_ideal = 0.0015; % 1/s
+r_ideal_0      = 0.5375;
+lambda_r_ideal = -0.0015; % 1/s
 
 %% Simulation settings
 % Time
