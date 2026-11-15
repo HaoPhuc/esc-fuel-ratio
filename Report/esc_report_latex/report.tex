@@ -70,7 +70,7 @@ This report records the findings of the first project phase, which uses a delibe
   \item How do they affect the \emph{energy} produced, and when is ESC better than simply operating at $r=0.5$? (``Optimal-to-operate'', OTO.)
   \item Can a small neural-network classifier predict these outcomes from the ESC parameters?
 \end{enumerate}
-More complex plants (nonlinear dynamics, noise, delays, discrete-time ESC, alternative optimisers such as RMSprop \citep{tieleman2012rmsprop}) are planned for later phases (Section~\ref{sec:outlook}).
+More complex plants (nonlinear dynamics, noise, delays, discrete-time ESC, alternative optimisers such as RMSprop-based ESC \citep{mcnamee_rmsprop_esc}) are planned for later phases (Section~\ref{sec:outlook}).
 
 %======================================================================
 \section{Plant model}
@@ -206,6 +206,8 @@ The scripts also store $E_\mathrm{max}=T\nref^2/4=3306.25$. This value is \emph{
 
 \paragraph{Parameter sampling.} $k$ is drawn log-uniformly, $a$ and $f$ uniformly. Table~\ref{tab:datasets} lists the data sets used.
 
+\paragraph{Python port.} The simulation loop was ported to Python (\texttt{Tools/esc\_sim.py}) so that large sweeps run in minutes. For \num{3000} randomly chosen runs from each of four MATLAB data sets, the port reproduces every convergence flag, the convergence times to within \SI{e-13}{s} and the energies to a relative difference below $10^{-12}$ (\texttt{Tools/validate\_esc\_sim.py}). It was used to generate the random-loss sweep.
+
 \begin{table}[t]
   \centering
   \small
@@ -216,16 +218,15 @@ The scripts also store $E_\mathrm{max}=T\nref^2/4=3306.25$. This value is \emph{
     Data set (CSV) & Script & Runs & $k$ & $a$ & $f$ [Hz] \\
     \midrule
     \texttt{STO-const\_decay-200k} & \texttt{STO\_ESC\_constdecay.m} & \num{200000} & $[10^{-5},5]$ & $(0,1]$ & $(0,10]$ \\
-    \texttt{STO-random\_decay}$^{a}$ & \texttt{STO\_ESC\_randdecay.m} & \num{10000} & $[10^{-5},10^{-2}]$ & $[0.01,0.5]$ & $[0.01,0.5]$ \\
-    \texttt{STO-const\_decay-10k}$^{b}$ & (earlier version) & \num{10000} & $[10^{-3},0.1]$ & $[0.01,0.5]$ & $[0.4,0.8]$ \\
+    \texttt{STO-random\_decay-200k}$^{a}$ & \texttt{generate\_STO\_random\_decay.py} & \num{200000} & $[10^{-5},5]$ & $(0,1]$ & $(0,10]$ \\
     \texttt{OTO-ESC-200k} & \texttt{OTO\_ESC\_rand\_Plant\_rand.m} & \num{200000} & $[10^{-5},5]$ & $(0,1]$ & $(0,10]$ \\
     \texttt{OTO-ESC\_fix-1\_0.2\_6} & \texttt{OTO\_ESC\_fix\_Plant\_rand.m} & \num{100000} & $1$ & $0.2$ & $6$ \\
-    \texttt{OTO-Plant\_fix-*} (6 plants) & \texttt{OTO\_ESC\_rand\_Plant\_fix.m} & $6\times\num{100000}$ & $[10^{-5},5]$ & $(0,1]$ & $(0,10]$ \\
+    \texttt{OTO-Plant\_fix-*} (8 plants)$^{b}$ & \texttt{OTO\_ESC\_rand\_Plant\_fix.m} & $8\times\num{100000}$ & $[10^{-5},5]$ & $(0,1]$ & $(0,10]$ \\
     \bottomrule
   \end{tabular}\\[0.5ex]
   \raggedright\footnotesize
-  $^{a}$ Loss times randomised by $\pm\SI{0.1}{s}$ per run; D/T actuators swapped in this script (see Section~\ref{sec:issues}).\quad
-  $^{b}$ In \texttt{Safe-to-operate/STO-const\_decay/Mistakes}; further exploratory sweeps (100k--550k) are in the same folder.
+  $^{a}$ Loss times randomised by $\pm\SI{0.1}{s}$ per run; generated with the Python port of the simulation (see text).\quad
+  $^{b}$ Six plants are analysed in Section~\ref{sec:oto}; two more were simulated later and are summarised there.
 \end{table}
 
 %======================================================================
@@ -248,12 +249,12 @@ Figure~\ref{fig:example} shows a run of \texttt{ESC.m} ($k=4\times10^{-4}$, $a=0
 
 \paragraph{Raw parameter dependence.} In the broad 200k sweep, \SI{36.9}{\percent} of runs converge. The median convergence time of converged runs is \SI{14.4}{s}; \num{12465} runs converge within \SI{10}{s} and \num{138} within \SI{5}{s}. The fastest run takes \SI{2.25}{s} ($k=1.42$, $a=0.88$, $f=\SI{1.74}{Hz}$).
 Among converged runs, the Spearman rank correlation with convergence time is $-0.45$ for $k$, $-0.21$ for $f$ and $+0.05$ for $a$. The gain dominates, the frequency matters, and the amplitude barely matters.
-The earlier 10k sweep shows the same pattern in a narrower box (Fig.~\ref{fig:pairplot}). Among runs that converge in under \SI{10}{s}, fast convergence requires $k$ to increase with $f$, while $a$ is spread over its full range.
+The \num{12465} runs that converge in under \SI{10}{s} show the coupling between gain and frequency directly (Fig.~\ref{fig:pairplot}): fast convergence requires $k$ to increase with $f$ (correlation $0.48$ between $\log_{10}k$ and $f$), while $a$ is spread over its full range.
 
 \begin{figure}[t]
   \centering
   \includegraphics[width=0.7\linewidth]{pairplot_conv_time_lt10.png}
-  \caption{Pair plot of runs with convergence time $<\SI{10}{s}$ from the 10k constant-decay sweep ($k\in[10^{-3},0.1]$, $a\in[0.01,0.5]$, $f\in[0.4,0.8]$\,Hz). Note the band structure in $k$ versus $f$: faster dithers require larger gains. Figure from the repository.}
+  \caption{Pair plot of the runs with convergence time $<\SI{10}{s}$ from the 200k constant-loss sweep (random sample of \num{5000} of \num{12465} runs; gain on a logarithmic axis). Faster dithers require larger gains.}
   \label{fig:pairplot}
 \end{figure}
 
@@ -263,7 +264,7 @@ The earlier 10k sweep shows the same pattern in a narrower box (Fig.~\ref{fig:pa
   \item In the window $0.1\le\lavg\le\SI{3}{s^{-1}}$ (\SI{25.9}{\percent} of the sweep), \SI{96.3}{\percent} of runs converge, with median times of \SIrange{10.7}{13.3}{s}.
   \item Above $\lavg\approx\SI{10}{s^{-1}}$ only \SI{1.1}{\percent} converge: the loop is too fast for the averaging assumption and oscillates or saturates at the bounds of $r$.
 \end{itemize}
-At low $\lavg$ the measured times follow the trend of $\ln20/\lavg$, lying somewhat below it because only the faster runs finish within \SI{100}{s}. At high $\lavg$ they saturate at $\approx\SI{10}{s}$, a floor set by the PI start-up transient and the filter lags, which the averaged model neglects. Inside the window, the dither frequency still matters: \SI{99.9}{\percent} converge for $f\in[5,10]$\,Hz but only \SI{23}{\percent} for $f\le\SI{0.05}{Hz}$, because averaging needs $\omega$ to be well separated from the closed-loop rate. The amplitude has a small effect except for $a\lesssim0.05$, where the convergence fraction drops to \SI{82}{\percent} (Fig.~\ref{fig:sto}c).
+At low $\lavg$ the measured times follow the trend of $\ln20/\lavg$, lying somewhat below it because only the faster runs finish within \SI{100}{s}. At high $\lavg$ they saturate at $\approx\SI{10}{s}$, a floor set by the PI start-up transient and the filter lags, which the averaged model neglects. Inside the window, the dither frequency still matters: \SI{99.9}{\percent} converge for $f\in[5,10]$\,Hz but only \SI{23}{\percent} for $f\le\SI{0.05}{Hz}$, because averaging needs $\omega$ to be well separated from the closed-loop rate. The amplitude has a small effect except for $a\lesssim0.05$, where the convergence fraction drops to \SI{82}{\percent} (Fig.~\ref{fig:sto}c). This holds for the constant plant; large amplitudes behave differently when $\rid$ is further from $0.5$ (next paragraph).
 
 \begin{figure}[t]
   \centering
@@ -272,8 +273,8 @@ At low $\lavg$ the measured times follow the trend of $\ln20/\lavg$, lying somew
   \label{fig:sto}
 \end{figure}
 
-\paragraph{Random loss rates.} With loss times randomised by $\pm\SI{0.1}{s}$, only \SI{25.4}{\percent} of the \num{10000} runs converge (median \SI{30.7}{s}; 178 runs below \SI{10}{s}). Even inside the $\lavg$ window, only \SI{53}{\percent} converge. Two factors contribute and cannot be separated with the stored data. (i) This sweep uses low dither frequencies ($f\le\SI{0.5}{Hz}$), where convergence is less reliable even for a constant plant. (ii) The D/T actuators are swapped in this script (Section~\ref{sec:issues}). The controller then converges to $1-\rid$ while convergence is checked against $\rid$. With $\rid$ ranging over about $0.48$--$0.54$, this mismatch can exceed the \SI{5}{\percent} band. \todo{rerun with the swap fixed and the decay rates saved per run.}
-When the 178 fastest parameter sets were re-simulated (\texttt{appended\_data.csv}, column \texttt{alternative\_convergence\_time}), the median time rose from \SI{8.2}{s} to \SI{12.3}{s}. Part of their speed was therefore due to the particular decay-rate draw. \todo{confirm how the alternative times were generated.}
+\paragraph{Random loss rates.} In a second sweep of \num{200000} runs the loss times are drawn per run, $\tau_D=1.71\pm\SI{0.1}{s}$ and $\tau_T=1.66\pm\SI{0.1}{s}$, so that $\rid$ varies between $0.478$ and $0.537$. \SI{34.9}{\percent} of the runs converge (median \SI{14.9}{s}), against \SI{36.9}{\percent} for the constant plant, and \SI{91.1}{\percent} inside the $\lavg$ window, against \SI{96.3}{\percent}. The difference comes from large dither amplitudes. For $a\le0.5$ about \SI{94}{\percent} of the runs inside the window converge whatever the ideal ratio; for $a>0.85$ this falls to about \SI{40}{\percent} when $\rid\ge0.52$. Direct tests with $k=1$ and $f=\SI{6}{Hz}$ show why: for $\rid=0.537$ the estimate settles at $0.538$ for $a=0.2$, at $0.561$ for $a=0.6$ and at $0.603$ for $a=0.9$. With a large dither the estimate ends further from $0.5$ than the ideal ratio, and for $a=0.9$ it leaves the \SI{5}{\percent} band. A likely cause is the clipping of the applied ratio to $[0,1]$, which cuts off part of every dither period when $a>0.5$; the mean applied ratio is then closer to $0.5$ than $\rhat$ is. \todo{verify the clipping explanation on single runs.} For the constant plant, $\rid=0.507$ is so close to $0.5$ that the offset stays inside the band.
+An earlier sweep of \num{10000} runs with random loss rates was generated with the deuterium and tritium fuelling swapped and has been discarded.
 
 \subsection{Optimal-to-operate: energy and the comparison with $r=0.5$}
 \label{sec:oto}
@@ -289,6 +290,7 @@ Restricting to \emph{well-tuned} runs ($0.1\le\lavg\le\SI{3}{s^{-1}}$ and $L_\ma
 \paragraph{One tuned parameter set on random plants.} Based on the 3-D scatter plots, the set $k=1$, $a=0.2$, $f=\SI{6}{Hz}$ was chosen ($\lavg=\SI{1.26}{s^{-1}}$, $L_\mathrm{dith}=0.066$). On \num{100000} random plants it converged in every run (median \SI{6.8}{s}, maximum \SI{9.7}{s}). It beat $r=0.5$ in \SI{98.4}{\percent} of plants, with median gain 13.1 units. The worst case was a loss of only $0.37$ units ($\approx\SI{0.01}{\percent}$; Fig.~\ref{fig:oto}b). The gain grows with $|r_{\mathrm{ideal},0}-0.5|$ and with drift away from $0.5$, as Eq.~\eqref{eq:fixedloss} predicts. The few losses occur where $\rid$ stays near $0.5$ for the whole run.
 
 \paragraph{Fixed plants.} For six fixed plants (Fig.~\ref{fig:oto}c), well-tuned ESC wins in \SIrange{96.0}{99.2}{\percent} of runs and recovers most of the attainable margin. For static plants with $\rid=0.475$ or $0.525$, the median gain is $6.6$ or $8.4$ units, against an upper bound of $8.5$ or $9.5$. For strongly drifting plants the gains are $111$ (bound $114$) and $165$ (bound $167$), i.e.\ \SIrange{3.5}{5.3}{\percent} of $E_{r=0.5}$.
+Two further plants whose ideal ratio drifts through $0.5$, $(0.5375,-0.0015)$ and $(0.4625,+0.0015)$, were simulated afterwards and are not shown in Fig.~\ref{fig:oto}c. Well-tuned ESC wins in \SI{96.3}{\percent} and \SI{92.4}{\percent} of their runs, with median gains of $6.2$ and $3.5$ units (upper bounds $7.3$ and $5.8$).
 Including untuned parameter sets, the win rates are \SIrange{70}{91}{\percent}. The notebooks note that mirror-image plants ($\rid<0.5$ versus $>0.5$) produce similar but not identical decision regions. Under the parametrisation~\eqref{eq:drift}, the static map itself is mirror-symmetric: $J(r;\rid)=J(1-r;1-\rid)$. The asymmetry must therefore come from elsewhere. Two candidates are (i) the D-rich initial state ($r=0.1$) shared by all runs, and (ii) the exponential drift, which is not mirror-symmetric: $0.55\,e^{0.2}=0.672$, whereas $1-0.45\,e^{-0.2}=0.632$. \todo{separate the two effects; for the $\lambda=0$ pair (0.475/0.525) only (i) applies.}
 
 \begin{figure}[t]
@@ -300,30 +302,35 @@ Including untuned parameter sets, the win rates are \SIrange{70}{91}{\percent}. 
 
 \subsection{Classifiers for convergence and for choosing ESC}
 \label{sec:ml}
-Fully connected networks (PyTorch: $32$-$16$ and $64$-$32$-$16$ ReLU layers; Keras for the random-decay set) were trained on 60/20/20 splits. The inputs were the ESC parameters plus engineered features ($\log_{10}k$, $\sin f$, $k\,a\sin f$). Table~\ref{tab:ml} compares the reported accuracies with the accuracy of always predicting the majority class, which is the relevant baseline for these imbalanced labels.
+Fully connected networks (PyTorch, $32$-$16$ and $64$-$32$-$16$ ReLU layers) were trained on 60/20/20 splits. The inputs were the ESC parameters, the plant parameters where they vary, and three engineered features ($\log_{10}k$, $\sin f$, $k\,a\sin f$). For the mirror-plant tests, a $32$-$16$ network is trained on one plant (80/20 split, ESC parameters only) and tested on all runs of the mirror plant. Table~\ref{tab:ml} compares the accuracies with the accuracy of always predicting the majority class, which is the relevant baseline for these imbalanced labels.
 
 \begin{table}[t]
   \centering
   \small
-  \caption{Classifier accuracies reported in the notebooks. Majority baseline: accuracy of always predicting the most frequent class on the same evaluation set.}
+  \caption{Classifier accuracies from the notebooks. The fifth column is the cross-validation accuracy, or for the plant pairs the accuracy on the mirror plant (twin). Majority baseline: accuracy of always predicting the most frequent class on the same evaluation set.}
   \label{tab:ml}
   \begin{tabular}{@{}lllccc@{}}
     \toprule
     Data set & Target & Model & Train & CV / test & Majority \\
     \midrule
-    STO const.\ decay 10k & converged & 32-16 & 0.969 & 0.969 & 0.710 \\
-                          &           & 64-32-16 & 0.975 & 0.974 & 0.710 \\
-    STO random decay 10k  & converged & Keras, 3 variants & 0.900--0.909 & 0.891--0.906 & 0.746 \\
-    OTO 10k               & choose\_ESC & 32-16 & 0.931 & 0.914 & 0.753 \\
-                          &             & 64-32-16 & 0.929 & 0.913 & 0.753 \\
-    OTO plant $(0.5,+0.001)\to(0.5,-0.001)$ & choose\_ESC & 32-16 & 0.988 & 0.962 (test) & 0.746 \\
-    OTO plant $(0.55,+0.002)\to(0.45,-0.002)$ & choose\_ESC & 32-16 & 0.995 & 0.930 (test) & 0.843 \\
+    STO constant loss 200k & converged & 32-16 & 0.993 & 0.992 & 0.629 \\
+                          &           & 64-32-16 & 0.995 & 0.995 & 0.629 \\
+    STO random loss 200k  & converged & 32-16 & 0.988 & 0.987 & 0.647 \\
+                          &           & 64-32-16 & 0.989 & 0.988 & 0.647 \\
+    OTO 10k               & choose\_ESC & 32-16 & 0.928 & 0.916 & 0.752 \\
+                          &             & 64-32-16 & 0.925 & 0.909 & 0.752 \\
+    OTO 200k              & choose\_ESC & 32-16 & 0.960 & 0.960 & 0.748 \\
+                          &             & 64-32-16 & 0.978 & 0.976 & 0.748 \\
+    OTO plant $(0.5,+0.001)\to(0.5,-0.001)$ & choose\_ESC & 32-16 & 0.985 & 0.960 (twin) & 0.746 \\
+    OTO plant $(0.55,+0.002)\to(0.45,-0.002)$ & choose\_ESC & 32-16 & 0.992 & 0.929 (twin) & 0.843 \\
+    OTO plant $(0.525,0)\to(0.475,0)$ & choose\_ESC & 32-16 & 0.985 & 0.915 (twin) & 0.701 \\
+    OTO plant $(0.5375,-0.0015)\to(0.4625,+0.0015)$ & choose\_ESC & 32-16 & 0.984 & 0.787 (twin) & 0.536 \\
     \bottomrule
   \end{tabular}
 \end{table}
 
-All classifiers beat the majority baseline, but the margin is smaller than the raw accuracy suggests. This is clearest for transfer to the mirror plant ($0.930$ versus $0.843$): recall on class 0 drops to $0.56$, so the model trained on one plant mislabels many losing parameter sets on its mirror twin.
-For the random-decay set, train and CV accuracy are equal at $\approx0.90$, and adding layers did not help. This points to label noise rather than underfitting, and is consistent with the random decay rates and the D/T swap discussed above.
+With 200k runs the convergence classifiers reach a cross-validation accuracy of \SIrange{98.7}{99.5}{\percent}, far above the majority baseline. On the earlier random-loss data, which had the swapped fuelling, the accuracy had stalled at about \SI{90}{\percent} whatever the network size; with the corrected data it is \SI{98.8}{\percent}, which supports the explanation that the ceiling came from the data and not from the model. Predicting \texttt{choose\_ESC} is harder: $0.976$ with 200k runs and $0.916$ with 10k runs.
+Transfer between mirror plants is clearly worse than cross-validation on the training plant: $0.929$ against a baseline of $0.843$ for the $(0.55,+0.002)$ pair, where recall on class 0 is $0.55$, and $0.787$ against $0.536$ for the pair whose ideal ratio drifts through $0.5$. Mirror plants therefore do not share the same set of good ESC parameters.
 Given Section~\ref{sec:sto}, a physics-informed feature such as $\log\lavg$ (and $\log L_\mathrm{dith}$ for energy) is a natural input to try next \todo{test}.
 
 %======================================================================
@@ -338,13 +345,13 @@ Within this model, the answer depends on how far, and how variably, $\rid$ sits 
   \item \textbf{Uncertain or drifting plant.} The prize grows quadratically with the offset, to \SIrange{3.5}{5.3}{\percent} for the drifting plants studied. The fixed ratio has no way to follow it. Here ESC is clearly preferable.
   \item \textbf{Risk.} The tuned set ($k=1$, $a=0.2$, $f=\SI{6}{Hz}$) lost energy in \SI{1.6}{\percent} of plants, by at most \SI{0.01}{\percent} of the output. With this tuning ESC is essentially a free option in this model.
 \end{enumerate}
-In short, \textbf{ESC is worth using if it is tuned inside the window} $0.1\lesssim\lavg\lesssim\SI{3}{s^{-1}}$, with a dither frequency well above the plant corner ($f\gtrsim\SI{1}{Hz}$, so that $L_\mathrm{dith}\ll1$) and $a\gtrsim0.1$. Outside this window, a fixed $r=0.5$ is often better.
+In short, \textbf{ESC is worth using if it is tuned inside the window} $0.1\lesssim\lavg\lesssim\SI{3}{s^{-1}}$, with a dither frequency well above the plant corner ($f\gtrsim\SI{1}{Hz}$, so that $L_\mathrm{dith}\ll1$) and $0.1\lesssim a\lesssim0.5$. Outside this window, a fixed $r=0.5$ is often better.
 
 \subsection{Tuning rules suggested by the data}
 \begin{itemize}
   \item Choose $f$ first: high enough that the dither loss (Eq.~\eqref{eq:ditherloss}) is negligible, and well separated from the closed-loop rate.
   \item Then choose $k$ from Eq.~\eqref{eq:lavg} so that $\lavg\approx\SIrange{0.3}{1}{s^{-1}}$. This, not $k$ alone, is the quantity to report.
-  \item Keep $a\gtrsim0.1$ to avoid amplifying start-up transients through $2/a$. Beyond that, $a$ has little effect on speed in this model. In a real machine $a$ will be bounded below by measurement noise and above by the acceptable perturbation of $r$.
+  \item Keep $a\gtrsim0.1$ to avoid amplifying start-up transients through $2/a$, and $a\lesssim0.5$: larger dithers are clipped at $r=0$ and $r=1$ and bias the estimate when $\rid$ is not close to $0.5$ (Section~\ref{sec:sto}). In between, $a$ has little effect on speed in this model. In a real machine $a$ will be bounded below by measurement noise and above by the acceptable perturbation of $r$.
 \end{itemize}
 
 \subsection{Limitations of the present model}
@@ -357,17 +364,18 @@ In short, \textbf{ESC is worth using if it is tuned inside the window} $0.1\less
 
 \subsection{Issues found in the code and data}
 \label{sec:issues}
-\note{Collected while reading the repository; none of them changes the main conclusions, but items 1, 5 and 6 affect specific numbers.}
+\note{Status in November 2026, after the repository clean-up.}
 \begin{enumerate}
-  \item \textbf{D/T swap.} \texttt{STO\_ESC\_randdecay.m} and \texttt{intuition\_Draft.m} use $u_D=rS$, $u_T=(1-r)S$, the opposite of the definition $r=\Gamma_T/(\Gamma_T+\Gamma_D)$ used everywhere else.
-  \item \textbf{Amplitude lower bound.} \texttt{1e-708} underflows to $0$ in double precision, so $a$ can be arbitrarily close to zero and $2/a$ arbitrarily large.
-  \item \textbf{Inconsistent initial state.} The densities are initialised for $r=0.1$ at \SI{25}{\percent} of $\nref$, while $\rhat_0=0$ (STO) or $0.5$ (OTO). This is harmless because it is common to all runs, but it should be stated.
-  \item \textbf{Plot reference.} The ``$\nT$ reference'' $r\,\nref$ in the run plots is the steady state only if $\alpha_D=\alpha_T$.
-  \item \textbf{Unattainable $E_\mathrm{max}$.} See Section~\ref{sec:setup}; use $E_\mathrm{ceil}$ or a fixed-$\rid(t)$ run instead.
-  \item \textbf{Decision threshold.} \texttt{choose\_ESC} counts an arbitrarily small energy difference as a win, and \SI{27.5}{\percent} of OTO runs start already ``converged'' (time 0). A margin (e.g.\ $>\SI{0.1}{\percent}$) and a convergence criterion that excludes runs starting inside the band would make both labels more meaningful.
-  \item \textbf{Stale notebook outputs.} The classification outputs in \texttt{STO-const\_decay-200k.ipynb} are identical to those of the 10k notebook (2000 CV samples) and were evidently not re-run on the 200k data. \texttt{OTO-ESC-200k.ipynb} has no stored outputs. Table~\ref{tab:ml} therefore uses the 10k results.
-  \item \textbf{Pending run.} \texttt{OTO\_ESC\_rand\_Plant\_fix.m} is currently configured for a plant $(0.4625, +0.0015)$ whose CSV is not in the repository.
-  \item \textbf{Interactive script.} In \texttt{intuition\_Draft.m} the tune-mode block is not inside an \texttt{if}, and the analyse mode resets its history at every chunk.
+  \item \textbf{D/T swap (fixed).} \texttt{STO\_ESC\_randdecay.m} and \texttt{intuition\_Draft.m} used $u_D=rS$, $u_T=(1-r)S$, the opposite of the definition $r=\Gamma_T/(\Gamma_T+\Gamma_D)$. Both scripts are corrected but have not been re-run in MATLAB. The data sets generated with the swapped code (the 10k random-loss sweep and the exploratory constant-loss sweeps) were removed, and the random-loss sweep was regenerated with the Python port.
+  \item \textbf{Amplitude lower bound (open).} The dither amplitude and frequency are sampled from zero (the bound was written \texttt{1e-708}, which is $0$ in double precision), so $a$ can be arbitrarily close to zero and $2/a$ arbitrarily large.
+  \item \textbf{Inconsistent initial state (open).} The densities are initialised for $r=0.1$ at \SI{25}{\percent} of $\nref$, while $\rhat_0=0$ (STO) or $0.5$ (OTO). This is harmless because it is common to all runs, but it should be stated.
+  \item \textbf{Plot reference (open).} The ``$\nT$ reference'' $r\,\nref$ in the run plots is the steady state only if $\alpha_D=\alpha_T$.
+  \item \textbf{Unattainable $E_\mathrm{max}$ (open).} See Section~\ref{sec:setup}; use $E_\mathrm{ceil}$ or a fixed-$\rid(t)$ run instead.
+  \item \textbf{Decision threshold (open).} \texttt{choose\_ESC} counts an arbitrarily small energy difference as a win, and \SI{27.5}{\percent} of OTO runs start already ``converged'' (time 0). A margin (e.g.\ $>\SI{0.1}{\percent}$) and a convergence criterion that excludes runs starting inside the band would make both labels more meaningful.
+  \item \textbf{Stale notebook outputs (fixed).} Some notebooks carried classifier outputs copied from another data set or had never been run. All notebooks were re-run on their own data.
+  \item \textbf{Mislabelled data set (fixed).} The file named for the plant $(0.4625,+0.0015)$ contained the plant $(0.5375,-0.0015)$; it was renamed, and the plant $(0.4625,+0.0015)$ has since been simulated.
+  \item \textbf{Interactive script (partly fixed).} In \texttt{intuition\_Draft.m} the tune-mode block is now inside an \texttt{if}; the analyse mode still resets its history at every chunk.
+  \item \textbf{Bias at large dither amplitude (open).} For $a\gtrsim0.6$ the estimate settles away from $\rid$ (Section~\ref{sec:sto}), so the convergence label is not reliable there.
 \end{enumerate}
 
 %======================================================================
@@ -376,17 +384,17 @@ In short, \textbf{ESC is worth using if it is tuned inside the window} $0.1\less
 %======================================================================
 \begin{itemize}
   \item Validate Eqs.~\eqref{eq:lavg} and~\eqref{eq:ditherloss} directly on single runs (convergence time and steady-state ripple versus $k$, $a$, $f$).
-  \item Fix the D/T swap and re-run the random-decay sweep, storing the drawn $\alpha_D,\alpha_T$ per run.
+  \item Explain the bias of the estimate at large dither amplitudes (Section~\ref{sec:sto}), and re-run the corrected MATLAB script for the random-loss sweep as a cross-check of the Python port.
   \item Decouple the filter cut-offs from $\omega$ and include $\omega_h,\omega_l$ in the sweeps.
-  \item Add realistic complications in order of expected impact: measurement noise on the neutron signal, output delay (see the literature on ESC with delays in \texttt{Papers/}), time-varying and nonlinear loss rates, valve dynamics.
-  \item Compare with discrete-time ESC and adaptive-step optimisers (e.g.\ RMSprop \citep{tieleman2012rmsprop}) and with safety-filtered ESC.
-  \item Move towards the physical test set-up (cf.\ the TU/e theses in \texttt{Papers/}) \todo{add proper citations}.
+  \item Add realistic complications in order of expected impact: measurement noise on the neutron signal, output delay \citep{santos2020delays}, time-varying and nonlinear loss rates, valve dynamics.
+  \item Compare with discrete-time ESC and adaptive-step optimisers (e.g.\ RMSprop-based ESC \citep{mcnamee_rmsprop_esc}) and with safety-filtered ESC \citep{williams2025safety}.
+  \item Move towards the physical test set-up \citep{varnavides2025setup,dekorte2026esc}.
 \end{itemize}
 
 %======================================================================
 \section{Conclusion}
 %======================================================================
-For a first-order two-species density model with PI total-density control, sinusoidal ESC on the fuel ratio behaves as averaging theory predicts. Convergence is governed by one combined rate, $\lavg=2\nref^2kc(\omega)$, and is reliable for $0.1\lesssim\lavg\lesssim\SI{3}{s^{-1}}$. The dither amplitude matters little beyond $a\gtrsim0.1$, and the energy cost of the dither is negligible at high dither frequency.
+For a first-order two-species density model with PI total-density control, sinusoidal ESC on the fuel ratio behaves as averaging theory predicts. Convergence is governed by one combined rate, $\lavg=2\nref^2kc(\omega)$, and is reliable for $0.1\lesssim\lavg\lesssim\SI{3}{s^{-1}}$. The dither amplitude matters little for $0.1\lesssim a\lesssim0.5$, and the energy cost of the dither is negligible at high dither frequency.
 Compared with a fixed ratio of $0.5$, a well-tuned ESC wins in \SIrange{93}{99}{\percent} of cases. The size of the win is bounded by $(1-2\rid)^2$: at most \SI{1}{\percent} for static plants in the studied range, and up to \SI{5}{\percent} for drifting plants. The case for ESC therefore rests on uncertainty and drift in $\rid$, which the next, more realistic models should quantify.
 
 \bibliographystyle{plainnat}

@@ -1,14 +1,21 @@
 %% Prerequisites
 clc; clear all; close all;
 
+% NOTE (Nov 2026): this script was corrected but has NOT been re-run in MATLAB since:
+%   - the fuelling is no longer swapped (u_T = r*S, u_D = (1-r)*S, as in ESC.m),
+%   - the loss rates and the ideal ratio of every run are stored in the output,
+%   - the ESC parameter ranges and the number of runs match STO_ESC_constdecay.m.
+% The dataset in this folder, STO-random_decay-200k.csv, was generated with
+% generate_STO_random_decay.py (Python port of this loop, validated against the MATLAB data).
+
 %% Create table and preallocate results
-results = table(Size = [0 5], ...
-    VariableTypes = {'double','double','double','logical','double'}, ...
-    VariableNames = {'optimizer_gain','dither_amplitude','dither_frequency','y','convergence_time'});
+results = table(Size = [0 8], ...
+    VariableTypes = {'double','double','double','double','double','double','logical','double'}, ...
+    VariableNames = {'optimizer_gain','dither_amplitude','dither_frequency','n_D_decay_rate','n_T_decay_rate','ideal_ratio','converged','convergence_time'});
 %% Batch sweep settings
-combinations = 10000; % total random sets to test
-save_every = 500; % add results to CSV every N combinations
-csv_filename = 'safe-to-operate.csv';
+combinations = 200000; % total random sets to test
+save_every = 5000; % add results to CSV every N combinations
+csv_filename = 'STO-random_decay-200k-matlab.csv'; % separate name: does not overwrite the Python-generated dataset
 
 %% Simulation settings
 % Time
@@ -23,9 +30,9 @@ conv_hold_time = 5; % must stay within bound
 for i = 1:combinations
 
     % ESC parameters range
-    dither_amplitude_range = [0.01, 0.5];
-    dither_frequency_range = [0.01, 0.5];    
-    optimizer_gain_range   = [1e-5, 1e-2];
+    dither_amplitude_range = [0, 1];    % same ranges as STO_ESC_constdecay.m
+    dither_frequency_range = [0, 10];
+    optimizer_gain_range   = [1e-5, 5];
     % ESC parameters (randomized)
     dither_amplitude = dither_amplitude_range(1) + diff(dither_amplitude_range) * rand();
     dither_frequency = dither_frequency_range(1) + diff(dither_frequency_range) * rand();
@@ -33,13 +40,13 @@ for i = 1:combinations
     optimizer_gain = 10^(log_range(1) + diff(log_range) * rand()); %randomize the power
 
     % Run trial
-    [converged, convergence_time] = esc_trial(dither_amplitude, dither_frequency, optimizer_gain, dt, tend, convergence_fraction, conv_hold_time);
+    [converged, convergence_time, n_D_decay_rate, n_T_decay_rate, ideal_ratio] = esc_trial(dither_amplitude, dither_frequency, optimizer_gain, dt, tend, convergence_fraction, conv_hold_time);
 
     % Append results
-    results = [results; {optimizer_gain, dither_amplitude, dither_frequency, converged, convergence_time}];
+    results = [results; {optimizer_gain, dither_amplitude, dither_frequency, n_D_decay_rate, n_T_decay_rate, ideal_ratio, converged, convergence_time}];
 
     % Print progress to the console
-    fprintf('Trial %d/%d: gain=%.4g, amp=%.4g, freq=%.4g -> y=%d, conv_time=%.2f\n', i, combinations, optimizer_gain, dither_amplitude, dither_frequency, converged, convergence_time);
+    fprintf('Trial %d/%d: gain=%.4g, amp=%.4g, freq=%.4g, r_ideal=%.4f -> converged=%d, conv_time=%.2f\n', i, combinations, optimizer_gain, dither_amplitude, dither_frequency, ideal_ratio, converged, convergence_time);
 
     % Save progress to csv every N combinations (just in case)
     if mod(i, save_every) == 0 || i == combinations
@@ -54,7 +61,7 @@ disp('Batch sweep complete');
 
 % ESC TRIAL (same as in ESC.m)
 
-function [converged, convergence_time] = esc_trial(dither_amplitude, dither_frequency, optimizer_gain, dt, tend, fraction, hold_time)
+function [converged, convergence_time, n_D_decay_rate, n_T_decay_rate, ideal_ratio] = esc_trial(dither_amplitude, dither_frequency, optimizer_gain, dt, tend, fraction, hold_time)
 
     dither_omega = dither_frequency * 2 * pi;
     highpass_cutoff_omega = dither_omega / pi;
@@ -124,8 +131,8 @@ function [converged, convergence_time] = esc_trial(dither_amplitude, dither_freq
         S_total = max(S_total, 0);
 
         % Fuel pumping & Update densities
-        u_D = r * S_total;
-        u_T = (1 - r) * S_total;
+        u_T = r * S_total;        % r is the TRITIUM fraction of the puff (D and T were swapped here before)
+        u_D = (1 - r) * S_total;
         nD = Ad_D*nD + Bd_D*u_D;
         nT = Ad_T*nT + Bd_T*u_T;
 

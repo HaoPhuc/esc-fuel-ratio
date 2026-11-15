@@ -9,12 +9,12 @@ results = table(Size = [0 11], ...
 %% Batch sweep settings
 combinations = 100000; % total random sets to test
 save_every = 50000; % add results to CSV every N combinations
-csv_filename = 'OTO-Plant_fix-0.4625_0.0015-100kshots.csv';
+csv_filename = 'OTO-Plant_fix-0.4625_0.0015-100kshots.csv'; % keep in sync with r_ideal_0 and lambda_r_ideal below
 
 %% Plant parameters (constant for every trial — choose them here)
 % Ideal fuel ratio: r_ideal(t) = r_ideal_0 * exp(lambda_r_ideal * t)
-r_ideal_0      = 0.5375;
-lambda_r_ideal = -0.0015; % 1/s
+r_ideal_0      = 0.4625;
+lambda_r_ideal = 0.0015; % 1/s
 
 %% Simulation settings
 % Time
@@ -41,8 +41,8 @@ for i = 1:combinations
 
     % ESC parameters range
     optimizer_gain_range   = [1e-5, 5];
-    dither_amplitude_range = [1e-708, 1];
-    dither_frequency_range = [1e-708, 10];
+    dither_amplitude_range = [0, 1];  % lower bound 0 (it was written 1e-708, which is 0 in double precision)
+    dither_frequency_range = [0, 10]; % lower bound 0 (it was written 1e-708, which is 0 in double precision)
 
     % ESC parameters (randomized)
     dither_amplitude = dither_amplitude_range(1) + diff(dither_amplitude_range) * rand();

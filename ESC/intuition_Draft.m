@@ -98,8 +98,8 @@ if strcmp(mode, 'analyse')
             S_total = proportional_gain*e_density + integral_gain*integral_density_error;
             S_total = max(S_total, 0);
             
-            u_D = r_current * S_total;
-            u_T = (1 - r_current) * S_total;
+            u_T = r_current * S_total;        % r is the TRITIUM fraction of the puff (D and T were swapped here before)
+            u_D = (1 - r_current) * S_total;
             nD = Ad_D*nD + Bd_D*u_D;
             nT = Ad_T*nT + Bd_T*u_T;
             P = nD * nT;
@@ -107,7 +107,7 @@ if strcmp(mode, 'analyse')
             r_chunk(k) = r_current;
         end
         
-        t_hist = [];
+        t_hist = [];   % NOTE: the histories are reset for every chunk, so only the latest chunk is plotted; move these six lines above the loop to accumulate
         P_hist = [];
         r_hist = [];
         var_hist = [];
@@ -149,6 +149,7 @@ if strcmp(mode, 'analyse')
 
 end
 %% ========== TUNE MODE ==========
+if strcmp(mode, 'tune')   % (this block used to run after analyse mode as well)
 
     dither_amplitude = default_dither_amplitude;
     dither_frequency = default_dither_frequency;
@@ -199,8 +200,8 @@ end
             S_total = proportional_gain*e_density + integral_gain*integral_density_error;
             S_total = max(S_total, 0);
 
-            u_D = r_current * S_total;
-            u_T = (1 - r_current) * S_total;
+            u_T = r_current * S_total;        % r is the TRITIUM fraction of the puff (D and T were swapped here before)
+            u_D = (1 - r_current) * S_total;
 
             nD = Ad_D*nD + Bd_D*u_D;
             nT = Ad_T*nT + Bd_T*u_T;
@@ -260,3 +261,5 @@ end
             end
         end
     end
+
+end % tune mode

@@ -33,8 +33,8 @@ for i = 1:combinations
 
     % ESC parameters range
     optimizer_gain_range   = [1e-5, 5];
-    dither_amplitude_range = [1e-708, 1];
-    dither_frequency_range = [1e-708, 10];
+    dither_amplitude_range = [0, 1];  % lower bound 0 (it was written 1e-708, which is 0 in double precision)
+    dither_frequency_range = [0, 10]; % lower bound 0 (it was written 1e-708, which is 0 in double precision)
 
     % Ideal fuel ratio range: r_ideal(t) = r_ideal_0 * exp(lambda_r_ideal * t)
     r_ideal_0_range      = [0.45, 0.55];
