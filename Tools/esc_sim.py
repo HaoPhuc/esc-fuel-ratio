@@ -48,6 +48,7 @@ def simulate(optimizer_gain, dither_amplitude, dither_frequency, *,
              tau_D=TAU_D, tau_T=TAU_T,
              r_ideal_0=None, lambda_r_ideal=0.0,
              r_hat_0=0.0, use_esc=True, fixed_ratio=0.5,
+             dither_phase=0.0, initial_ratio=INITIAL_RATIO, mirror_plant=False,
              dt=DT, tend=T_END, return_traces=False):
     """Simulate a batch of ESC runs.
 
@@ -62,6 +63,13 @@ def simulate(optimizer_gain, dither_amplitude, dither_frequency, *,
       * use_esc=True : ESC with gain k, dither amplitude a, dither frequency f [Hz],
         starting from r_hat_0.
       * use_esc=False: the fuel ratio is held at `fixed_ratio` (no dither, no optimiser).
+
+    Options for symmetry tests (the defaults reproduce the MATLAB scripts)
+      * dither_phase [rad]: the dither and the demodulation use sin(w t + dither_phase).
+        With pi the first dither half-period lowers r instead of raising it.
+      * initial_ratio: tritium fraction of the initial densities (MATLAB: 0.1, deuterium-rich).
+      * mirror_plant=True (drifting plant only): use 1 - r_ideal_0 exp(lambda t), the exact
+        mirror image of the plant (r_ideal_0, lambda) under the exchange of D and T.
 
     Returns a dict of arrays (one entry per run):
       converged, convergence_time [s] (NaN if not converged), energy = int n_D n_T dt,
@@ -96,8 +104,8 @@ def simulate(optimizer_gain, dither_amplitude, dither_frequency, *,
         demod_gain = 2.0 / a
 
     # --- states ---------------------------------------------------------------
-    nD = np.full(n_runs, 0.25 * (1 - INITIAL_RATIO) * N_REF)
-    nT = np.full(n_runs, 0.25 * INITIAL_RATIO * N_REF)
+    nD = np.full(n_runs, 0.25 * (1 - initial_ratio) * N_REF)
+    nT = np.full(n_runs, 0.25 * initial_ratio * N_REF)
     r_hat = rh0.copy()
     integral_error = np.zeros(n_runs)
 
@@ -114,6 +122,8 @@ def simulate(optimizer_gain, dither_amplitude, dither_frequency, *,
         t_now = t_vec[i]
         if drifting:
             ideal = r0 * np.exp(lam * t_now)
+            if mirror_plant:
+                ideal = 1.0 - ideal
             alpha_T = ideal * DECAY_RATE_SUM
             alpha_D = (1 - ideal) * DECAY_RATE_SUM
             Ad_D, Ad_T = np.exp(-alpha_D * dt), np.exp(-alpha_T * dt)
@@ -121,7 +131,7 @@ def simulate(optimizer_gain, dither_amplitude, dither_frequency, *,
 
         # fuel ratio applied to the plasma
         if use_esc:
-            s = np.sin(omega * t_now)
+            s = np.sin(omega * t_now + dither_phase)
             r = np.fmin(np.fmax(r_hat + a * s, 0.0), 1.0)   # like MATLAB min(max(x,0),1)
         else:
             r = np.full(n_runs, float(fixed_ratio))

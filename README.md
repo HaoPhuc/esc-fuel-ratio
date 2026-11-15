@@ -46,6 +46,7 @@ starts with a description of the columns.
 | `Optimal-to-operate/OTO-ESC-10k.ipynb`, `OTO-ESC-200k.ipynb` | `OTO-ESC-10k.csv`, `OTO-ESC-200k.csv` | `OTO_ESC_rand_Plant_rand.m` | ESC parameters and drifting plant |
 | `Optimal-to-operate/OTO-ESC_fix.ipynb` | `OTO-ESC_fix-1_0.2_6-100kshots.csv` | `OTO_ESC_fix_Plant_rand.m` | drifting plant; ESC fixed at $k=1$, $a=0.2$, $f=6$ Hz |
 | `Optimal-to-operate/OTO-Plant_fix.ipynb` | eight `OTO-Plant_fix-<r_ideal_0>_<lambda>-100kshots.csv` | `OTO_ESC_rand_Plant_fix.m` | ESC parameters; one fixed plant per file |
+| `Optimal-to-operate/OTO-Plant_fix.ipynb`, Section 8 | `OTO-mirror_symmetry_test.csv` | `mirror_symmetry_test.py` (Python port) | 10,000 ESC parameter sets per mirror pair; plant, twin, and twin with the dither flipped and/or the initial densities mirrored |
 
 `OTO_ESC_rand_Plant_rand.m` writes `OTO-200kshots.csv`; the files here were renamed afterwards.
 In the `OTO-Plant_fix` file names, a missing `<lambda>` means no drift.

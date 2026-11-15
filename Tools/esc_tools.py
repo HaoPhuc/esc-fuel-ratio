@@ -460,14 +460,24 @@ def gain_ecdf(dfs, title='Energy gain of ESC over fixed r = 0.5, all runs'):
     return fig
 
 
-def loss_curves(histories):
-    """Training and cross-validation loss per epoch; histories = {model name: history dict}."""
-    fig, axes = plt.subplots(1, len(histories), figsize=(4.2 * len(histories) + 0.4, 3.2), sharey=True, squeeze=False)
-    for ax, (name, h) in zip(axes[0], histories.items()):
+def loss_curves(histories, ncols=None):
+    """Training and cross-validation loss per epoch; histories = {model name: history dict}.
+
+    ncols: number of panels per row (default: all panels in one row).
+    """
+    n = len(histories)
+    ncols = n if ncols is None else min(ncols, n)
+    nrows = -(-n // ncols)
+    fig, axes = plt.subplots(nrows, ncols, figsize=(4.2 * ncols + 0.4, 3.2 * nrows), sharey=True, squeeze=False)
+    for ax in axes.ravel()[n:]:
+        ax.set_visible(False)
+    for ax, (name, h) in zip(axes.ravel(), histories.items()):
         ax.plot(h['loss'], color=COLORS['esc'], label='training')
         ax.plot(h['val_loss'], color=COLORS['fixed'], label='cross-validation')
         ax.set_xlabel('epoch'); ax.set_title(name)
-    axes[0, 0].set_ylabel('binary cross-entropy loss'); axes[0, -1].legend()
+    for row in axes:
+        row[0].set_ylabel('binary cross-entropy loss')
+    axes[0, ncols - 1].legend()
     fig.tight_layout()
     return fig
 
