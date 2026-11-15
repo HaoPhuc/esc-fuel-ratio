@@ -49,6 +49,7 @@ def simulate(optimizer_gain, dither_amplitude, dither_frequency, *,
              r_ideal_0=None, lambda_r_ideal=0.0,
              r_hat_0=0.0, use_esc=True, fixed_ratio=0.5,
              dither_phase=0.0, initial_ratio=INITIAL_RATIO, mirror_plant=False,
+             steady_start=None, ratio_map=None, track=False, settle_tolerances=(0.01, 0.02),
              dt=DT, tend=T_END, return_traces=False):
     """Simulate a batch of ESC runs.
 
@@ -63,6 +64,7 @@ def simulate(optimizer_gain, dither_amplitude, dither_frequency, *,
       * use_esc=True : ESC with gain k, dither amplitude a, dither frequency f [Hz],
         starting from r_hat_0.
       * use_esc=False: the fuel ratio is held at `fixed_ratio` (no dither, no optimiser).
+        fixed_ratio='ideal' makes the ratio follow r_ideal(t) exactly (reference for the best possible energy).
 
     Options for symmetry tests (the defaults reproduce the MATLAB scripts)
       * dither_phase [rad]: the dither and the demodulation use sin(w t + dither_phase).
@@ -70,6 +72,20 @@ def simulate(optimizer_gain, dither_amplitude, dither_frequency, *,
       * initial_ratio: tritium fraction of the initial densities (MATLAB: 0.1, deuterium-rich).
       * mirror_plant=True (drifting plant only): use 1 - r_ideal_0 exp(lambda t), the exact
         mirror image of the plant (r_ideal_0, lambda) under the exchange of D and T.
+
+    Options added for the paired fixed-plant sweep (the defaults reproduce the MATLAB scripts)
+      * steady_start: if a ratio is given (e.g. 0.5), the run starts from a plasma that is already
+        running: full density n_ref, in steady state with that fuel ratio, density controller and
+        high-pass filter at rest. Default None: 25 % density, set with `initial_ratio`, as in MATLAB.
+      * ratio_map: function from the REQUESTED ratio (r_hat + dither) to the ratio the plasma RECEIVES.
+        Default: clipping to [0, 1]. Placeholder for the relation the supervisor described; replace it
+        when that relation is known.
+      * track=True adds measures based on the received ratio, averaged over 1 s:
+          tracking_error       mean |received - r_ideal| over the run (after the first second)
+          tracking_error_late  the same over the second half of the run
+          settling_time_<tol>  time after which |received - r_ideal| stays below tol until the end of
+                               the run [s]; NaN if it is exceeded in the last 5 s. One entry per value
+                               in settle_tolerances.
 
     Returns a dict of arrays (one entry per run):
       converged, convergence_time [s] (NaN if not converged), energy = int n_D n_T dt,
@@ -108,6 +124,18 @@ def simulate(optimizer_gain, dither_amplitude, dither_frequency, *,
     nT = np.full(n_runs, 0.25 * initial_ratio * N_REF)
     r_hat = rh0.copy()
     integral_error = np.zeros(n_runs)
+    if steady_start is not None:
+        # plasma already running at the ratio `steady_start`: total density n_ref, nothing changes in time
+        if drifting:
+            ideal_0 = 1.0 - r0 if mirror_plant else r0
+            alpha_T0, alpha_D0 = ideal_0 * DECAY_RATE_SUM, (1 - ideal_0) * DECAY_RATE_SUM
+        else:
+            alpha_T0, alpha_D0 = alpha_T, alpha_D
+        source = N_REF / (steady_start / alpha_T0 + (1 - steady_start) / alpha_D0)   # total fuelling
+        nT = steady_start * source / alpha_T0 * np.ones(n_runs)
+        nD = (1 - steady_start) * source / alpha_D0 * np.ones(n_runs)
+        integral_error = source / KI * np.ones(n_runs)     # the PI controller already supplies `source`
+        hp_x_prev = nD * nT                                # high-pass filter at rest
 
     # --- bookkeeping ------------------------------------------------------------
     energy = np.zeros(n_runs); P_prev = np.zeros(n_runs)
@@ -117,6 +145,13 @@ def simulate(optimizer_gain, dither_amplitude, dither_frequency, *,
     conv_time = np.full(n_runs, np.nan)
     if return_traces:
         tr = {key: np.empty((n_steps, n_runs)) for key in ('r', 'r_hat', 'nD', 'nT', 'P', 'r_ideal')}
+    if track:
+        window = max(1, int(round(1.0 / dt)))              # 1 s moving average
+        r_buffer = np.zeros((window, n_runs)); ideal_buffer = np.zeros((window, n_runs))
+        r_sum = np.zeros(n_runs); ideal_sum = np.zeros(n_runs)
+        error_sum = np.zeros(n_runs); error_late_sum = np.zeros(n_runs)
+        n_error = n_late = 0
+        last_above = [np.full(n_runs, -np.inf) for _ in settle_tolerances]   # last time the error was above tol
 
     for i in range(n_steps):
         t_now = t_vec[i]
@@ -133,8 +168,24 @@ def simulate(optimizer_gain, dither_amplitude, dither_frequency, *,
         if use_esc:
             s = np.sin(omega * t_now + dither_phase)
             r = np.fmin(np.fmax(r_hat + a * s, 0.0), 1.0)   # like MATLAB min(max(x,0),1)
+            if ratio_map is not None:
+                r = ratio_map(r_hat + a * s)                 # requested ratio -> ratio the plasma receives
+        elif isinstance(fixed_ratio, str):                   # 'ideal': follow r_ideal(t) exactly
+            r = np.broadcast_to(ideal, (n_runs,)).astype(float)
         else:
             r = np.full(n_runs, float(fixed_ratio))
+
+        if track:
+            slot = i % window
+            r_sum += r - r_buffer[slot]; ideal_sum += ideal - ideal_buffer[slot]
+            r_buffer[slot] = r; ideal_buffer[slot] = ideal
+            if i >= window - 1:
+                error = np.abs(r_sum - ideal_sum) / window
+                error_sum += error; n_error += 1
+                if t_now >= tend / 2:
+                    error_late_sum += error; n_late += 1
+                for tol, last in zip(settle_tolerances, last_above):
+                    last[error > tol] = t_now
 
         # PI controller on the total density
         e = N_REF - (nD + nT)
@@ -178,6 +229,13 @@ def simulate(optimizer_gain, dither_amplitude, dither_frequency, *,
 
     out = dict(converged=converged, convergence_time=conv_time, energy=energy,
                r_hat_final=r_hat, ideal_ratio=np.broadcast_to(ideal, (n_runs,)).copy())
+    if track:
+        out['tracking_error'] = error_sum / n_error
+        out['tracking_error_late'] = error_late_sum / n_late
+        first_measured = (window - 1) * dt
+        for tol, last in zip(settle_tolerances, last_above):
+            settled = last <= tend - CONV_HOLD_TIME          # not exceeded during the last 5 s
+            out[f'settling_time_{tol:g}'] = np.where(settled, np.maximum(last + dt, first_measured), np.nan)
     if return_traces:
         tr['t'] = t_vec
         out['traces'] = tr
