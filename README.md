@@ -29,7 +29,7 @@ still open (not verified yet).
 | `ESC/` | Single-run MATLAB scripts: `ESC.m` (basic loop), `ESC_energy.m` (drifting plant and energy), `intuition_Draft.m` (interactive exploration). |
 | `Safe-to-operate/` | Sweeps asking **does the ESC converge, and how fast?** Constant loss rates (`STO-const_decay/`) and random loss rates (`STO-random_decay/`). |
 | `Optimal-to-operate/` | Sweeps asking **how much energy does ESC give compared with a fixed ratio $r = 0.5$?** on plants whose ideal ratio drifts. |
-| `Tools/` | Shared Python code: plot style and analysis helpers (`esc_tools.py`), classifier helpers (`esc_ml.py`), a Python port of the simulation (`esc_sim.py`) and its validation (`validate_esc_sim.py`). |
+| `Tools/` | Shared Python code: plot style and analysis helpers (`esc_tools.py`), classifier helpers (`esc_ml.py`), a Python port of the simulation (`esc_sim.py`) and its validation (`validate_esc_sim.py`), helpers for the Python sweep scripts (`esc_sweeps.py`). |
 | `Report/` | LaTeX source of the draft report and the link to Overleaf. |
 | `Papers/` | Reading list (the PDF files themselves are not kept in the repository). |
 | `PLAN.md`, `LITERATURE_CHECK.md` | Proposed next phase and the novelty check. |
@@ -50,6 +50,38 @@ starts with a description of the columns.
 
 `OTO_ESC_rand_Plant_rand.m` writes `OTO-200kshots.csv`; the files here were renamed afterwards.
 In the `OTO-Plant_fix` file names, a missing `<lambda>` means no drift.
+
+### Python versions of the sweep scripts
+
+Every MATLAB sweep script has a Python version with the same name next to it (`STO_ESC_constdecay.py`,
+`STO_ESC_randdecay.py`, `OTO_ESC_rand_Plant_rand.py`, `OTO_ESC_rand_Plant_fix.py`, `OTO_ESC_fix_Plant_rand.py`).
+They use the same settings, draw the random numbers in the same order from the same generator as MATLAB
+(Mersenne Twister), and write the same columns. The simulation is done by `Tools/esc_sim.py`.
+
+The MATLAB data sets were made in MATLAB sessions that did not reset the random generator, so each one starts at
+a known position in MATLAB's default random stream. With `--skip <position>` the Python script draws the same
+parameter sets:
+
+| Dataset | Python script | Options |
+|---|---|---|
+| `STO-const_decay-200k.csv` | `STO_ESC_constdecay.py` | `--skip 726705` |
+| `OTO-ESC-200k.csv` | `OTO_ESC_rand_Plant_rand.py` | (none) |
+| `OTO-ESC-10k.csv` | `OTO_ESC_rand_Plant_rand.py` | `--combinations 10000 --skip 5016` |
+| `OTO-ESC_fix-1_0.2_6-100kshots.csv` | `OTO_ESC_fix_Plant_rand.py` | `--skip 1812645` |
+| `OTO-Plant_fix-0.5375_-0.0015-100kshots.csv` | `OTO_ESC_rand_Plant_fix.py` | `--r-ideal-0 0.5375 --lambda-r-ideal -0.0015` |
+| `OTO-Plant_fix-0.4625_0.0015-100kshots.csv` | `OTO_ESC_rand_Plant_fix.py` | `--r-ideal-0 0.4625 --lambda-r-ideal 0.0015 --skip 300000` |
+| `OTO-Plant_fix-0.5_0.001-100kshots.csv` | `OTO_ESC_rand_Plant_fix.py` | `--r-ideal-0 0.5 --lambda-r-ideal 0.001 --skip 12645` |
+| `OTO-Plant_fix-0.5_-0.001-100kshots.csv` | `OTO_ESC_rand_Plant_fix.py` | `--r-ideal-0 0.5 --lambda-r-ideal -0.001 --skip 312645` |
+| `OTO-Plant_fix-0.55_0.002-100kshots.csv` | `OTO_ESC_rand_Plant_fix.py` | `--r-ideal-0 0.55 --lambda-r-ideal 0.002 --skip 612645` |
+| `OTO-Plant_fix-0.45_-0.002-100kshots.csv` | `OTO_ESC_rand_Plant_fix.py` | `--r-ideal-0 0.45 --lambda-r-ideal -0.002 --skip 912645` |
+| `OTO-Plant_fix-0.525-100kshots.csv` | `OTO_ESC_rand_Plant_fix.py` | `--r-ideal-0 0.525 --lambda-r-ideal 0 --skip 1212645` |
+| `OTO-Plant_fix-0.475-100kshots.csv` | `OTO_ESC_rand_Plant_fix.py` | `--r-ideal-0 0.475 --lambda-r-ideal 0 --skip 1512645` |
+
+Checked in November 2026: with these options the ESC and plant parameters of all rows of all twelve files are
+reproduced (relative difference below $10^{-12}$, the rounding of the CSV files). For six of the files the first
+2,000 to 4,000 rows were also simulated: `converged`, `convergence_time`, `choose_ESC` and `energy_const` are
+identical, and `energy_ESC` is identical except for a few runs per thousand that are sensitive to rounding errors
+(relative difference up to $5\times10^{-4}$). `STO_ESC_randdecay.py` has no MATLAB data set to compare with.
 
 ## Conventions
 
@@ -78,6 +110,16 @@ data, or to regenerate the random-loss sweep:
 python Tools/validate_esc_sim.py
 python Safe-to-operate/STO-random_decay/generate_STO_random_decay.py
 ```
+
+To run a sweep with the Python version of a MATLAB script (`--help` lists the options):
+
+```
+python Optimal-to-operate/OTO_ESC_rand_Plant_fix.py --r-ideal-0 0.55 --lambda-r-ideal 0.002
+python Safe-to-operate/STO-const_decay/STO_ESC_constdecay.py --combinations 1000 --output test.csv
+```
+
+The default output name ends in `-python.csv`, and an existing file is only replaced with `--overwrite`, so the
+MATLAB data sets cannot be overwritten by accident.
 
 **Plots.** All notebooks use one style, defined in `Tools/esc_tools.py` (`apply_style()` and `COLORS`). Change it
 there to change every plot. In each notebook section the plots under **Original plots** are the ones the notebook

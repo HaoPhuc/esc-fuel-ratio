@@ -184,15 +184,23 @@ def simulate(optimizer_gain, dither_amplitude, dither_frequency, *,
     return out
 
 
-def simulate_in_chunks(*args, chunk=20000, **kwargs):
-    """Same as simulate(), but splits large batches to limit memory use."""
-    arrs = _as_runs(*args)
-    per_run_kw = {key: val for key, val in kwargs.items()
+def simulate_in_chunks(*args, chunk=20000, progress=None, **kwargs):
+    """Same as simulate(), but splits large batches to limit memory use.
+
+    progress: if a text is given, one line is printed after every chunk (text, runs done, seconds).
+    """
+    import time
+    per_run_kw = {key: np.asarray(val, dtype=float) for key, val in kwargs.items()
                   if key in ('tau_D', 'tau_T', 'r_ideal_0', 'lambda_r_ideal', 'r_hat_0') and np.ndim(val) > 0}
+    # one entry per run for every positional argument, also when only the keyword arguments are arrays
+    arrs = _as_runs(*args, *per_run_kw.values())[:len(args)]
     n = arrs[0].size
     parts = []
+    start_time = time.time()
     for start in range(0, n, chunk):
         sl = slice(start, start + chunk)
-        kw = dict(kwargs); kw.update({key: np.asarray(val)[sl] for key, val in per_run_kw.items()})
+        kw = dict(kwargs); kw.update({key: val[sl] for key, val in per_run_kw.items()})
         parts.append(simulate(*[x[sl] for x in arrs], **kw))
+        if progress:
+            print(f'{progress}: {min(start + chunk, n)}/{n} runs, {time.time() - start_time:.0f} s', flush=True)
     return {key: np.concatenate([part[key] for part in parts]) for key in parts[0] if key != 'traces'}
