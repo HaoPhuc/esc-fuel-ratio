@@ -80,7 +80,8 @@ def simulate(optimizer_gain, dither_amplitude, dither_frequency, *,
       * ratio_map: function from the REQUESTED ratio (r_hat + dither) to the ratio the plasma RECEIVES.
         Default: clipping to [0, 1]. Placeholder for the relation the supervisor described; replace it
         when that relation is known.
-      * track=True adds measures based on the received ratio, averaged over 1 s:
+      * track=True adds measures based on the received ratio, averaged over a whole number of dither
+        periods (the number closest to 1 s, at least one period), so that the dither itself cancels:
           tracking_error       mean |received - r_ideal| over the run (after the first second)
           tracking_error_late  the same over the second half of the run
           settling_time_<tol>  time after which |received - r_ideal| stays below tol until the end of
@@ -146,12 +147,18 @@ def simulate(optimizer_gain, dither_amplitude, dither_frequency, *,
     if return_traces:
         tr = {key: np.empty((n_steps, n_runs)) for key in ('r', 'r_hat', 'nD', 'nT', 'P', 'r_ideal')}
     if track:
-        window = max(1, int(round(1.0 / dt)))              # 1 s moving average
-        r_buffer = np.zeros((window, n_runs)); ideal_buffer = np.zeros((window, n_runs))
+        # moving average over a whole number of dither periods (closest to 1 s), one window length per run
+        with np.errstate(divide='ignore', invalid='ignore'):
+            periods = np.maximum(1, np.round(f * 1.0))
+            window = np.where(f > 0, np.round(periods / (f * dt)), round(1.0 / dt)).astype(np.int64)
+        window = np.maximum(window, 1)
+        buffer_size = int(window.max()) + 1
+        r_buffer = np.zeros((buffer_size, n_runs)); ideal_buffer = np.zeros((buffer_size, n_runs))
         r_sum = np.zeros(n_runs); ideal_sum = np.zeros(n_runs)
         error_sum = np.zeros(n_runs); error_late_sum = np.zeros(n_runs)
-        n_error = n_late = 0
+        n_error = np.zeros(n_runs); n_late = np.zeros(n_runs)
         last_above = [np.full(n_runs, -np.inf) for _ in settle_tolerances]   # last time the error was above tol
+        run_index = np.arange(n_runs)
 
     for i in range(n_steps):
         t_now = t_vec[i]
@@ -176,16 +183,19 @@ def simulate(optimizer_gain, dither_amplitude, dither_frequency, *,
             r = np.full(n_runs, float(fixed_ratio))
 
         if track:
-            slot = i % window
-            r_sum += r - r_buffer[slot]; ideal_sum += ideal - ideal_buffer[slot]
-            r_buffer[slot] = r; ideal_buffer[slot] = ideal
-            if i >= window - 1:
-                error = np.abs(r_sum - ideal_sum) / window
-                error_sum += error; n_error += 1
-                if t_now >= tend / 2:
-                    error_late_sum += error; n_late += 1
-                for tol, last in zip(settle_tolerances, last_above):
-                    last[error > tol] = t_now
+            ideal_now = np.broadcast_to(ideal, (n_runs,))
+            old_slot = (i - window) % buffer_size                   # value that leaves the window
+            leaving = i - window >= 0
+            r_sum += r - np.where(leaving, r_buffer[old_slot, run_index], 0.0)
+            ideal_sum += ideal_now - np.where(leaving, ideal_buffer[old_slot, run_index], 0.0)
+            r_buffer[i % buffer_size] = r; ideal_buffer[i % buffer_size] = ideal_now
+            full = i >= window - 1
+            error = np.abs(r_sum - ideal_sum) / window
+            error_sum += np.where(full, error, 0.0); n_error += full
+            if t_now >= tend / 2:
+                error_late_sum += np.where(full, error, 0.0); n_late += full
+            for tol, last in zip(settle_tolerances, last_above):
+                last[full & (error > tol)] = t_now
 
         # PI controller on the total density
         e = N_REF - (nD + nT)
@@ -232,7 +242,7 @@ def simulate(optimizer_gain, dither_amplitude, dither_frequency, *,
     if track:
         out['tracking_error'] = error_sum / n_error
         out['tracking_error_late'] = error_late_sum / n_late
-        first_measured = (window - 1) * dt
+        first_measured = (window - 1) * dt                    # first time with a full window (one per run)
         for tol, last in zip(settle_tolerances, last_above):
             settled = last <= tend - CONV_HOLD_TIME          # not exceeded during the last 5 s
             out[f'settling_time_{tol:g}'] = np.where(settled, np.maximum(last + dt, first_measured), np.nan)
