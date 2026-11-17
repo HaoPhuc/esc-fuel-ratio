@@ -501,3 +501,40 @@ def scatter3d(df, color, *, sample=20000, title='', discrete=False, range_color=
     fig.update_traces(marker=dict(size=2))
     fig.update_layout(width=760, height=560, margin=dict(l=0, r=0, t=40, b=0))
     return fig
+
+
+# ---- smoothed maps of the parameter space -----------------------------------
+
+def bins_for(n_runs, runs_per_bin=20, low=20, high=100):
+    """Number of bins per axis so that a square grid holds about `runs_per_bin` runs per bin."""
+    return int(np.clip(np.sqrt(n_runs / runs_per_bin), low, high))
+
+
+def binned_map(x, y, values, x_edges, y_edges, *, statistic='mean', smooth=1.5, min_weight=0.5):
+    """Map of `values` over the grid (x_edges, y_edges), smoothed with a Gaussian of `smooth` bins.
+
+    statistic='mean'  : smoothed mean = (smoothed sum of the values) / (smoothed number of runs), i.e. every run
+                        counts equally and empty bins do not pull the result towards zero. Bins with a smoothed
+                        number of runs below `min_weight` are NaN.
+    statistic='median': median per bin, then averaged over neighbouring non-empty bins with the same Gaussian.
+    smooth=0 gives the plain binned statistic. Returns an array of shape (len(x_edges) - 1, len(y_edges) - 1),
+    to be drawn with ax.pcolormesh(x_edges, y_edges, result.T).
+    """
+    from scipy.ndimage import gaussian_filter
+    from scipy.stats import binned_statistic_2d
+    x, y, values = (np.asarray(a, dtype=float) for a in (x, y, values))
+    with np.errstate(invalid='ignore', divide='ignore'):
+        if statistic == 'mean':
+            total, _, _ = np.histogram2d(x, y, bins=[x_edges, y_edges], weights=values)
+            count, _, _ = np.histogram2d(x, y, bins=[x_edges, y_edges])
+            if smooth:
+                total = gaussian_filter(total, smooth, mode='constant')
+                count = gaussian_filter(count, smooth, mode='constant')
+            return np.where(count >= min_weight, total / count, np.nan)
+        per_bin, _, _, _ = binned_statistic_2d(x, y, values, statistic=statistic, bins=[x_edges, y_edges])
+        if not smooth:
+            return per_bin
+        filled = ~np.isnan(per_bin)
+        total = gaussian_filter(np.where(filled, per_bin, 0.0), smooth, mode='constant')
+        weight = gaussian_filter(filled.astype(float), smooth, mode='constant')
+        return np.where(weight >= 0.5, total / weight, np.nan)
