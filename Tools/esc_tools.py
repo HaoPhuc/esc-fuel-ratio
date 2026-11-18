@@ -498,7 +498,7 @@ def scatter3d(df, color, *, sample=20000, title='', discrete=False, range_color=
     else:
         fig = px.scatter_3d(d, x='optimizer_gain', y='dither_amplitude', z='dither_frequency', color=color, log_x=True,
                             color_continuous_scale='Viridis', range_color=range_color, labels=names, title=title)
-    fig.update_traces(marker=dict(size=2))
+    fig.update_traces(marker=dict(size=3))
     fig.update_layout(width=760, height=560, margin=dict(l=0, r=0, t=40, b=0))
     return fig
 

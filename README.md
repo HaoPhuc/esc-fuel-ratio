@@ -33,7 +33,6 @@ still open (not verified yet).
 | `Report/` | LaTeX source of the draft report and the link to Overleaf. |
 | `Papers/` | Reading list (the PDF files themselves are not kept in the repository). |
 | `PLAN.md`, `LITERATURE_CHECK.md` | Proposed next phase and the novelty check. |
-| `HANDOFF.md` | State of the work in progress and the next steps, for whoever continues it. |
 
 ## Datasets and notebooks
 
