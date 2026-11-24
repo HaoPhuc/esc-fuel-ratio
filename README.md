@@ -29,7 +29,7 @@ still open (not verified yet).
 | `ESC/` | Single-run MATLAB scripts: `ESC.m` (basic loop), `ESC_energy.m` (drifting plant and energy), `intuition_Draft.m` (interactive exploration). |
 | `Safe-to-operate/` | Sweeps asking **does the ESC converge, and how fast?** Constant loss rates (`STO-const_decay/`) and random loss rates (`STO-random_decay/`). |
 | `Optimal-to-operate/` | Sweeps asking **how much energy does ESC give compared with a fixed ratio $r = 0.5$?** on plants whose ideal ratio drifts. |
-| `Tools/` | Shared Python code: plot style and analysis helpers (`esc_tools.py`), classifier helpers (`esc_ml.py`), a Python port of the simulation (`esc_sim.py`) and its validation (`validate_esc_sim.py`), helpers for the Python sweep scripts (`esc_sweeps.py`). |
+| `Tools/` | Shared code in Python and MATLAB: the simulation (`esc_sim.py`, `esc_sim.m`) and its validation, helpers for the sweep scripts, plot style and analysis helpers (`esc_tools.py`) and classifier helpers (`esc_ml.py`). See [`Tools/README.md`](Tools/README.md). |
 | `Report/` | LaTeX source of the draft report and the link to Overleaf. |
 | `Papers/` | Reading list (the PDF files themselves are not kept in the repository). |
 | `PLAN.md`, `LITERATURE_CHECK.md` | Proposed next phase and the novelty check. |
@@ -83,6 +83,14 @@ reproduced (relative difference below $10^{-12}$, the rounding of the CSV files)
 2,000 to 4,000 rows were also simulated: `converged`, `convergence_time`, `choose_ESC` and `energy_const` are
 identical, and `energy_ESC` is identical except for a few runs per thousand that are sensitive to rounding errors
 (relative difference up to $5\times10^{-4}$). `STO_ESC_randdecay.py` has no MATLAB data set to compare with.
+
+### MATLAB versions of the Python sweep scripts
+
+The four sweeps that were first written in Python have a MATLAB version with the same name next to them
+(`OTO_ESC_paired_Plant_fix.m`, `OTO_ESC_chosen_Plant_rand.m`, `OTO_ESC_losing_region.m`, `mirror_symmetry_test.m`).
+They use `Tools/esc_sim.m`, draw the same random numbers as the Python scripts and write the same columns, to files
+ending in `-matlab.csv`. `Tools/validate_matlab_ports.m` compares them with the stored data sets. `Tools/README.md`
+lists which script makes which data set, in both languages.
 
 ## Conventions
 
