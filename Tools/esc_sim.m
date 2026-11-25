@@ -21,6 +21,16 @@ function out = esc_sim(optimizer_gain, dither_amplitude, dither_frequency, varar
 %     drifting plant            'RIdeal0' (and 'LambdaRIdeal' [1/s]):
 %                               r_ideal(t) = r_ideal_0 exp(lambda t), alpha_T = r_ideal A,
 %                               alpha_D = (1 - r_ideal) A, A = 1/1.71 + 1/1.66
+%   Options of the crossed plant x ESC sweep (the defaults change nothing)
+%     'TauScale'     (1)     both confinement times are multiplied by this factor (one per run allowed)
+%     'DriftShape'   ('exp') drifting plant only: 'exp', 'linear', 'step', 'sine' (or codes 0-3,
+%                            a cell array or a vector gives one shape per run), with 'DriftSize' D
+%                            and 'DriftTime' T_d (default Tend):
+%                              exp     r_ideal(t) = r_ideal_0 exp(lambda t)      (D and T_d not used)
+%                              linear  r_ideal(t) = r_ideal_0 + D t / T_d
+%                              step    r_ideal(t) = r_ideal_0 + D for t >= T_d
+%                              sine    r_ideal(t) = r_ideal_0 + D sin(2 pi t / T_d)
+%                            ('LambdaRIdeal' still multiplies r_ideal_0 by exp(lambda t); use 0 there)
 %   Controller
 %     'RHat0'        (0)     start value of r_hat (scalar or one per run)
 %     'UseESC'       (true)  false: the ratio is held at 'FixedRatio' (no dither, no optimiser)
@@ -71,15 +81,23 @@ addParameter(p, 'Dt', 0.01);
 addParameter(p, 'Tend', 100);
 addParameter(p, 'Chunk', 20000);
 addParameter(p, 'Progress', '');
+addParameter(p, 'TauScale', 1);
+addParameter(p, 'DriftShape', 'exp');
+addParameter(p, 'DriftSize', 0);
+addParameter(p, 'DriftTime', []);
 parse(p, varargin{:});
 opt = p.Results;
 
 % one entry per run for every input (scalars are repeated)
 drifting = ~isempty(opt.RIdeal0);
+if isempty(opt.DriftTime)
+    opt.DriftTime = opt.Tend;
+end
 if drifting
-    per_run = {optimizer_gain, dither_amplitude, dither_frequency, opt.RIdeal0, opt.LambdaRIdeal, opt.RHat0};
+    per_run = {optimizer_gain, dither_amplitude, dither_frequency, opt.RIdeal0, opt.LambdaRIdeal, opt.RHat0, ...
+               opt.TauScale, drift_codes(opt.DriftShape), opt.DriftSize, opt.DriftTime};
 else
-    per_run = {optimizer_gain, dither_amplitude, dither_frequency, opt.TauD, opt.TauT, opt.RHat0};
+    per_run = {optimizer_gain, dither_amplitude, dither_frequency, opt.TauD, opt.TauT, opt.RHat0, opt.TauScale};
 end
 n = max(cellfun(@numel, per_run));
 for j = 1:numel(per_run)
@@ -125,11 +143,14 @@ CONV_FRACTION = 0.05;                 % r_hat must be within 5 % of r_ideal ...
 CONV_HOLD_TIME = 5.0;                 % ... for 5 s to count as converged
 DECAY_RATE_SUM = 1 / 1.71 + 1 / 1.66; % kept constant in the drifting plant
 
-k = per_run{1}; a = per_run{2}; f = per_run{3}; rh0 = per_run{6};
+k = per_run{1}; a = per_run{2}; f = per_run{3}; rh0 = per_run{6}; scale = per_run{7};
 if drifting
     r0 = per_run{4}; lam = per_run{5};
+    shape = per_run{8}; drift_size = per_run{9}; t_drift = per_run{10};
+    decay_rate_sum = DECAY_RATE_SUM ./ scale;    % A of the drifting plant, one per run
+    shaped = any(shape ~= 0);                    % any run with a linear, step or sine drift
 else
-    tD = per_run{4}; tT = per_run{5};
+    tD = per_run{4} .* scale; tT = per_run{5} .* scale;
 end
 n_runs = numel(k);
 dt = opt.Dt; tend = opt.Tend;
@@ -159,11 +180,8 @@ integral_error = zeros(n_runs, 1);
 if ~isempty(opt.SteadyStart)
     % plasma already running at the ratio SteadyStart: total density n_ref, nothing changes in time
     if drifting
-        ideal_0 = r0;
-        if opt.MirrorPlant
-            ideal_0 = 1.0 - r0;
-        end
-        alpha_T0 = ideal_0 * DECAY_RATE_SUM; alpha_D0 = (1 - ideal_0) * DECAY_RATE_SUM;
+        ideal_0 = ideal_at(0.0, r0, lam, shape, drift_size, t_drift, shaped, opt.MirrorPlant);
+        alpha_T0 = ideal_0 .* decay_rate_sum; alpha_D0 = (1 - ideal_0) .* decay_rate_sum;
     else
         alpha_T0 = alpha_T; alpha_D0 = alpha_D;
     end
@@ -202,12 +220,9 @@ for step = 1:n_steps
     i = step - 1;                     % 0-based step number, as in Python
     t_now = i * dt;
     if drifting
-        ideal = r0 .* exp(lam * t_now);
-        if opt.MirrorPlant
-            ideal = 1.0 - ideal;
-        end
-        alpha_T = ideal * DECAY_RATE_SUM;
-        alpha_D = (1 - ideal) * DECAY_RATE_SUM;
+        ideal = ideal_at(t_now, r0, lam, shape, drift_size, t_drift, shaped, opt.MirrorPlant);
+        alpha_T = ideal .* decay_rate_sum;
+        alpha_D = (1 - ideal) .* decay_rate_sum;
         Ad_D = exp(-alpha_D * dt); Ad_T = exp(-alpha_T * dt);
         Bd_D = (1 - Ad_D) ./ alpha_D; Bd_T = (1 - Ad_T) ./ alpha_T;
     end
@@ -302,6 +317,41 @@ if opt.Track
     settling(~settled) = NaN;
     out.settling_time = settling;
     out.settle_tolerances = tols;
+end
+end
+
+
+function value = ideal_at(t_now, r0, lam, shape, drift_size, t_drift, shaped, mirror)
+% r_ideal of every run at time t_now (as ideal_at in esc_sim.py).
+value = r0 .* exp(lam * t_now);
+if shaped
+    g = zeros(size(r0));
+    g(shape == 1) = t_now ./ t_drift(shape == 1);
+    g(shape == 2) = double(t_now >= t_drift(shape == 2));
+    g(shape == 3) = sin(2 * pi * t_now ./ t_drift(shape == 3));
+    value = value + drift_size .* g;
+end
+if mirror
+    value = 1.0 - value;
+end
+end
+
+
+function c = drift_codes(shape)
+% Drift shape names ('exp', 'linear', 'step', 'sine') or codes 0-3 -> codes (as drift_codes in esc_sim.py).
+if isnumeric(shape) || islogical(shape)
+    c = double(shape(:));
+    return
+end
+names = {'exp', 'linear', 'step', 'sine'};
+shape = cellstr(shape);
+c = zeros(numel(shape), 1);
+for j = 1:numel(shape)
+    m = find(strcmp(names, shape{j}));
+    if isempty(m)
+        error('esc_sim:shape', 'Unknown drift shape ''%s'' (use exp, linear, step or sine).', shape{j});
+    end
+    c(j) = m - 1;
 end
 end
 

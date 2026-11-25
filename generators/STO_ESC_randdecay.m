@@ -5,7 +5,7 @@ clc; clear all; close all;
 %   - the fuelling is no longer swapped (u_T = r*S, u_D = (1-r)*S, as in ESC.m),
 %   - the loss rates and the ideal ratio of every run are stored in the output,
 %   - the ESC parameter ranges and the number of runs match STO_ESC_constdecay.m.
-% The dataset in this folder, STO-random_decay-200k.csv, was generated with
+% The dataset STO-random_decay-200k.csv (in data/STO-random_decay/) was generated with
 % generate_STO_random_decay.py (Python port of this loop, validated against the MATLAB data).
 
 %% Create table and preallocate results
@@ -15,7 +15,8 @@ results = table(Size = [0 8], ...
 %% Batch sweep settings
 combinations = 200000; % total random sets to test
 save_every = 5000; % add results to CSV every N combinations
-csv_filename = 'STO-random_decay-200k-matlab.csv'; % separate name: does not overwrite the Python-generated dataset
+addpath(fullfile(fileparts(mfilename('fullpath')), '..', 'Tools'));   % for esc_paths (the data folder)
+csv_filename = fullfile(esc_paths('STO-random_decay'), 'STO-random_decay-200k-matlab.csv'); % separate name: does not overwrite the Python-generated dataset
 
 %% Simulation settings
 % Time

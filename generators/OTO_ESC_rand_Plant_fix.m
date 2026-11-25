@@ -9,7 +9,8 @@ results = table(Size = [0 11], ...
 %% Batch sweep settings
 combinations = 100000; % total random sets to test
 save_every = 50000; % add results to CSV every N combinations
-csv_filename = 'OTO-Plant_fix-0.4625_0.0015-100kshots.csv'; % keep in sync with r_ideal_0 and lambda_r_ideal below
+addpath(fullfile(fileparts(mfilename('fullpath')), '..', 'Tools'));   % for esc_paths (the data folder)
+csv_filename = fullfile(esc_paths('OTO-Plant_fix'), 'OTO-Plant_fix-0.4625_0.0015-100kshots.csv'); % keep in sync with r_ideal_0 and lambda_r_ideal below
 
 %% Plant parameters (constant for every trial — choose them here)
 % Ideal fuel ratio: r_ideal(t) = r_ideal_0 * exp(lambda_r_ideal * t)

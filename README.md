@@ -7,7 +7,39 @@ Fusion power scales with the product of the deuterium and tritium densities, $n_
 (ESC) tunes the tritium fraction $r$ of the fuelling online, using only a measurement proportional to $n_D n_T$,
 so that this product is maximised without knowing the particle loss rates.
 
-## Goals
+## Goals of the current phase
+
+The current phase answers two questions in the noise-free first-order model. Both use the crossed data set
+(`data/OTO-crossed/`): every one of 2,005 ESC settings was run on every one of 600 test plants. A summary for the
+supervisor is in [`SUPERVISOR_SUMMARY.md`](SUPERVISOR_SUMMARY.md).
+
+1. **Is ESC better than a fixed fuel ratio r = 0.5?** It should win more often, and its wins should outweigh its
+   losses. Notebook: [`1_superiority/ESC_superiority.ipynb`](1_superiority/ESC_superiority.ipynb).
+   - A tuned ESC wins on almost every plant. The reference set (k = 1, a = 0.2, f = 6 Hz) wins on 98.7 % of the 600
+     plants and loses on the rest only where r_ideal is very close to 0.5, by at most 0.27 energy units; its net gain
+     is 26.73 units per run (out of about 3,300).
+   - ESC wins as soon as the plant's ideal ratio is farther from 0.5 than a break-even distance sqrt(L_dith / 13,225),
+     a few thousandths for tuned sets (reference set: 0.0024 measured, 0.0022 predicted).
+   - The size of the advantage depends on the plants assumed: about 26 units per run for the 0.45-0.55 drifting plants
+     used so far, but below 1 unit for plants within 0.01 of 0.5.
+   - ESC loses when the loop is about as fast as its own filters (large k at low f) or when the dither is expensive.
+     Over the whole searched box ESC still wins 87.1 % of the runs, but wins outweigh losses only 2.82 times.
+2. **Which ESC settings are safe and optimal, and does that depend on the plant?** Notebook:
+   [`2_operating_region/ESC_operating_region.ipynb`](2_operating_region/ESC_operating_region.ipynb).
+   - Proposed window: settle within 0.01 of r_ideal on every plant (also when starting at 0.3 or 0.7) within 30 s, and
+     keep at least 90 % of the possible gain on every plant (the 27 sine-wave plants, which almost no setting can
+     follow within 0.01, and plants with a margin below 2 units are judged separately). 142 of 2,000 random settings pass; the middle 90 % of them
+     have k 0.41-2.49, a 0.026-0.383 and f 4.5-9.8 Hz. A simple rule gives nearly the same sets: lambda_avg T >= 40,
+     lambda_avg / (2f) <= 0.2 and dither loss L_dith <= 0.1.
+   - The reference set and the best-energy set (1.6, 0.11, 9.91) are inside the window; the three 'fastest' chosen sets
+     are not (too slow on plants three times slower than nominal).
+   - In normalised coordinates (lambda_avg T, lambda_avg / 2f, L_dith / margin) the window has the same shape for every
+     plant family; the plant's time scale only shifts it in raw k and f. The two peaks in the gain distributions appear
+     on every plant (log-uniform k through the S-curve), not on one plant only.
+   - Time step: the 100 Hz loop (dt = 0.01 s) converges up to 1.67 times faster than at dt = 0.002 s (at 9.7 Hz), as the
+     sampled-loop formula predicts; the region edges move by up to 0.14 decades in gain. Question for JJ.
+
+### Longer-term goals of the project
 
 1. **Done.** Understand the purpose and fundamentals of ESC, and build a working ESC algorithm.
 2. **Ongoing.** Study the relations between the ESC parameters.
@@ -27,34 +59,42 @@ still open (not verified yet).
 | `Initial materials/` | Starting material from the supervisor: Simulink model, `main_fuelratio.m`, presentation. Not modified. |
 | `Theory/` | `Theory summary.md`: my summary of the physics and of how ESC works, with figures. |
 | `ESC/` | Single-run MATLAB scripts: `ESC.m` (basic loop), `ESC_energy.m` (drifting plant and energy), `intuition_Draft.m` (interactive exploration). |
-| `Safe-to-operate/` | Sweeps asking **does the ESC converge, and how fast?** Constant loss rates (`STO-const_decay/`) and random loss rates (`STO-random_decay/`). |
-| `Optimal-to-operate/` | Sweeps asking **how much energy does ESC give compared with a fixed ratio $r = 0.5$?** on plants whose ideal ratio drifts. |
+| `1_superiority/` | Goal 1: `ESC_superiority.ipynb`, is ESC better than a fixed r = 0.5? |
+| `2_operating_region/` | Goal 2: `ESC_operating_region.ipynb`, the safe and optimal ESC settings and their plant dependence. |
+| `generators/` | The scripts that make the data sets, in MATLAB (`.m`) and Python (`.py`) with the same name. Each one writes into its subfolder of `data/`. |
+| `data/` | All data sets (CSV), one subfolder per sweep: `STO-const_decay/`, `STO-random_decay/`, `OTO-ESC/`, `OTO-ESC_fix/`, `OTO-Plant_fix/`, `OTO-paired/`, `OTO-crossed/`. |
+| `exploration/` | The notebooks. `safe-to-operate/` asks **does the ESC converge, and how fast?** (constant and random loss rates); `optimal-to-operate/` asks **how much energy does ESC give compared with a fixed ratio $r = 0.5$?** on plants whose ideal ratio drifts. |
+| `checks/` | Stand-alone checks, e.g. `ESC_time_step_check.ipynb` (how the time step changes the convergence rate). |
 | `Tools/` | Shared code in Python and MATLAB: the simulation (`esc_sim.py`, `esc_sim.m`) and its validation, helpers for the sweep scripts, plot style and analysis helpers (`esc_tools.py`) and classifier helpers (`esc_ml.py`). See [`Tools/README.md`](Tools/README.md). |
 | `Report/` | LaTeX source of the draft report and the link to Overleaf. |
 | `Papers/` | Reading list (the PDF files themselves are not kept in the repository). |
-| `PLAN.md`, `LITERATURE_CHECK.md` | Proposed next phase and the novelty check. |
+| `PLAN.md`, `LITERATURE_CHECK.md`, `SUPERVISOR_SUMMARY.md` | Next steps, the novelty check, and a short summary of the current results for the supervisor. |
 
 ## Datasets and notebooks
 
-Every dataset is a CSV file with one row per simulated run of 100 s. Each notebook sits next to its data and
-starts with a description of the columns.
+Every dataset is a CSV file with one row per simulated run of 100 s. The notebooks are in `exploration/`, the data
+in `data/` and the scripts that made them in `generators/`. A notebook loads a file by its name only,
+`esc.read_data('<file>.csv')`, which finds it anywhere under `data/`. Each notebook starts with a description of
+the columns. Dataset paths below are relative to `data/`.
 
 | Notebook | Dataset | Generated by | What varies |
 |---|---|---|---|
-| `Safe-to-operate/STO-const_decay/STO-const_decay-200k.ipynb` | `STO-const_decay-200k.csv` | `STO_ESC_constdecay.m` | ESC parameters; constant plant |
-| `Safe-to-operate/STO-random_decay/STO-random_decay-200k.ipynb` | `STO-random_decay-200k.csv` | `generate_STO_random_decay.py` | ESC parameters and loss rates |
-| `Optimal-to-operate/OTO-ESC-10k.ipynb`, `OTO-ESC-200k.ipynb` | `OTO-ESC-10k.csv`, `OTO-ESC-200k.csv` | `OTO_ESC_rand_Plant_rand.m` | ESC parameters and drifting plant |
-| `Optimal-to-operate/OTO-ESC_fix.ipynb` | `OTO-ESC_fix-1_0.2_6-100kshots.csv` | `OTO_ESC_fix_Plant_rand.m` | drifting plant; ESC fixed at $k=1$, $a=0.2$, $f=6$ Hz |
-| `Optimal-to-operate/OTO-Plant_fix.ipynb` | eight `OTO-Plant_fix-<r_ideal_0>_<lambda>-100kshots.csv` | `OTO_ESC_rand_Plant_fix.m` | ESC parameters; one fixed plant per file |
-| `Optimal-to-operate/OTO-Plant_fix.ipynb`, Section 8 | `OTO-mirror_symmetry_test.csv` | `mirror_symmetry_test.py` (Python port) | 10,000 ESC parameter sets per mirror pair; plant, twin, and twin with the dither flipped and/or the initial densities mirrored |
-| `Optimal-to-operate/OTO-Plant_fix-paired.ipynb` | eight `OTO-paired-<r_ideal_0>_<lambda>-40k.csv` | `OTO_ESC_paired_Plant_fix.py` (Python only) | the same 40,000 ESC sets on all eight fixed plants; steady start; tracking error and settling time |
+| `exploration/safe-to-operate/STO-const_decay-200k.ipynb` | `STO-const_decay/STO-const_decay-200k.csv` | `STO_ESC_constdecay.m` | ESC parameters; constant plant |
+| `exploration/safe-to-operate/STO-random_decay-200k.ipynb` | `STO-random_decay/STO-random_decay-200k.csv` | `generate_STO_random_decay.py` | ESC parameters and loss rates |
+| `exploration/optimal-to-operate/OTO-ESC-10k.ipynb`, `OTO-ESC-200k.ipynb` | `OTO-ESC/OTO-ESC-10k.csv`, `OTO-ESC/OTO-ESC-200k.csv` | `OTO_ESC_rand_Plant_rand.m` | ESC parameters and drifting plant |
+| `exploration/optimal-to-operate/OTO-ESC_fix.ipynb` | `OTO-ESC_fix/OTO-ESC_fix-1_0.2_6-100kshots.csv` | `OTO_ESC_fix_Plant_rand.m` | drifting plant; ESC fixed at $k=1$, $a=0.2$, $f=6$ Hz |
+| `exploration/optimal-to-operate/OTO-Plant_fix.ipynb` | eight `OTO-Plant_fix/OTO-Plant_fix-<r_ideal_0>_<lambda>-100kshots.csv` | `OTO_ESC_rand_Plant_fix.m` | ESC parameters; one fixed plant per file |
+| `exploration/optimal-to-operate/OTO-Plant_fix.ipynb`, Section 8 | `OTO-Plant_fix/OTO-mirror_symmetry_test.csv` | `mirror_symmetry_test.py` (Python port) | 10,000 ESC parameter sets per mirror pair; plant, twin, and twin with the dither flipped and/or the initial densities mirrored |
+| `exploration/optimal-to-operate/OTO-Plant_fix-paired.ipynb` | eight `OTO-paired/OTO-paired-<r_ideal_0>_<lambda>-40k.csv` | `OTO_ESC_paired_Plant_fix.py` | the same 40,000 ESC sets on all eight fixed plants; steady start; tracking error and settling time |
+| `exploration/optimal-to-operate/OTO-ESC_fix.ipynb`, Sections 6-8 | `OTO-ESC_fix/OTO-ESC_chosen-*-100k.csv`, `OTO-ESC_fix/OTO-losing_region-*.csv` | `OTO_ESC_chosen_Plant_rand.py`, `OTO_ESC_losing_region.py` | five chosen ESC sets on random drifting plants; grid of plants around $r = 0.5$ where ESC loses |
+| `1_superiority/ESC_superiority.ipynb`, `2_operating_region/ESC_operating_region.ipynb` | `OTO-crossed/OTO-crossed-*.csv`: sets, plants and references tables plus 16 blocks | `OTO_ESC_crossed.py` | every one of 2,005 ESC sets (5 chosen, 2,000 quasi-random) on every one of 600 plants in seven families (static, exponential, time scale, linear, step, sine, random); steady start at 0.5; starts at 0.3 and 0.7 and a dt = 0.002 s check on subsets |
 
-`OTO_ESC_rand_Plant_rand.m` writes `OTO-200kshots.csv`; the files here were renamed afterwards.
+`OTO_ESC_rand_Plant_rand.m` writes `OTO-200kshots.csv`; the stored files were renamed afterwards.
 In the `OTO-Plant_fix` file names, a missing `<lambda>` means no drift.
 
 ### Python versions of the sweep scripts
 
-Every MATLAB sweep script has a Python version with the same name next to it (`STO_ESC_constdecay.py`,
+Every MATLAB sweep script has a Python version with the same name in `generators/` (`STO_ESC_constdecay.py`,
 `STO_ESC_randdecay.py`, `OTO_ESC_rand_Plant_rand.py`, `OTO_ESC_rand_Plant_fix.py`, `OTO_ESC_fix_Plant_rand.py`).
 They use the same settings, draw the random numbers in the same order from the same generator as MATLAB
 (Mersenne Twister), and write the same columns. The simulation is done by `Tools/esc_sim.py`.
@@ -86,8 +126,9 @@ identical, and `energy_ESC` is identical except for a few runs per thousand that
 
 ### MATLAB versions of the Python sweep scripts
 
-The four sweeps that were first written in Python have a MATLAB version with the same name next to them
-(`OTO_ESC_paired_Plant_fix.m`, `OTO_ESC_chosen_Plant_rand.m`, `OTO_ESC_losing_region.m`, `mirror_symmetry_test.m`).
+The five sweeps that were first written in Python have a MATLAB version with the same name in `generators/`
+(`OTO_ESC_paired_Plant_fix.m`, `OTO_ESC_chosen_Plant_rand.m`, `OTO_ESC_losing_region.m`, `mirror_symmetry_test.m`,
+`OTO_ESC_crossed.m`).
 They use `Tools/esc_sim.m`, draw the same random numbers as the Python scripts and write the same columns, to files
 ending in `-matlab.csv`. `Tools/validate_matlab_ports.m` compares them with the stored data sets. `Tools/README.md`
 lists which script makes which data set, in both languages.
@@ -107,8 +148,9 @@ lists which script makes which data set, in both languages.
 
 ## Running the code
 
-**MATLAB** (Control System Toolbox; Simulink only for `Initial materials/`). Run a script from its own folder.
-The sweep scripts write their CSV file into the current folder and overwrite it as they go, so set `csv_filename`
+**MATLAB** (Control System Toolbox; Simulink only for `Initial materials/`). The sweep scripts in `generators/` can
+be run from any folder: they add `Tools/` to the path and write their CSV file into their subfolder of `data/`
+(`esc_paths('<subfolder>')`). The original sweep scripts overwrite their file as they go, so set `csv_filename`
 before starting a new sweep.
 
 **Python** 3.11 with `numpy`, `pandas`, `matplotlib`, `seaborn`, `plotly`, `scikit-learn`, `pytorch` and `jupyter`.
@@ -117,17 +159,19 @@ data, or to regenerate the random-loss sweep:
 
 ```
 python Tools/validate_esc_sim.py
-python Safe-to-operate/STO-random_decay/generate_STO_random_decay.py
+python generators/generate_STO_random_decay.py
 ```
 
 To run a sweep with the Python version of a MATLAB script (`--help` lists the options):
 
 ```
-python Optimal-to-operate/OTO_ESC_rand_Plant_fix.py --r-ideal-0 0.55 --lambda-r-ideal 0.002
-python Safe-to-operate/STO-const_decay/STO_ESC_constdecay.py --combinations 1000 --output test.csv
+python generators/OTO_ESC_rand_Plant_fix.py --r-ideal-0 0.55 --lambda-r-ideal 0.002
+python generators/STO_ESC_constdecay.py --combinations 1000 --output test.csv
+python generators/OTO_ESC_crossed.py --parallel 8      # the crossed sweep, 8 blocks at a time
 ```
 
-The default output name ends in `-python.csv`, and an existing file is only replaced with `--overwrite`, so the
+By default the output goes into the script's subfolder of `data/` with a name ending in `-python.csv` (`--output`
+gives another path, relative to the current folder). An existing file is only replaced with `--overwrite`, so the
 MATLAB data sets cannot be overwritten by accident.
 
 **Plots.** All notebooks use one style, defined in `Tools/esc_tools.py` (`apply_style()` and `COLORS`). Change it
@@ -139,6 +183,8 @@ printed by the code, not typed by hand.
 ## Known limitations
 
 - The plasma model is linear and first order, without noise, delays or temperature dynamics.
+- The results of the two goal notebooks hold for the plant families that were chosen (`OTO-crossed-plants.csv`); the
+  window thresholds (30 s, 90 % of the possible gain, margin floor of 2 units) are proposals that still need to be agreed.
 - The MATLAB fixes made in November 2026 (fuelling swap in `STO_ESC_randdecay.m` and `intuition_Draft.m`) have not
   been re-run in MATLAB.
 - `choose_ESC` counts any energy difference as a win, and in the optimal-to-operate sweeps many runs start inside

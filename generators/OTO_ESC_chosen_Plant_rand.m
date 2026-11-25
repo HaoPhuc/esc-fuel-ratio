@@ -28,7 +28,7 @@ addpath(fullfile(here, '..', 'Tools'));
 run_references = true;      % the two reference cases
 sets_to_run = 1:5;          % indices in the list of ESC sets below
 rows = [];                  % [] = all plants; e.g. 1:25000 for only some of them
-output_folder = here;
+output_folder = esc_paths('OTO-ESC_fix');   % data/OTO-ESC_fix/
 overwrite = false;          % true: replace existing output files
 
 %% ESC sets: {name, optimizer gain k, dither amplitude a, dither frequency f [Hz]}

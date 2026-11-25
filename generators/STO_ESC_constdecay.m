@@ -8,7 +8,8 @@ results = table(Size = [0 5], ...
 %% Batch sweep settings
 combinations = 200000; % total random sets to test
 save_every = 5000; % add results to CSV every N combinations
-csv_filename = 'STO-const_decay-200k.csv';
+addpath(fullfile(fileparts(mfilename('fullpath')), '..', 'Tools'));   % for esc_paths (the data folder)
+csv_filename = fullfile(esc_paths('STO-const_decay'), 'STO-const_decay-200k.csv');
 
 %% Simulation settings
 % Time

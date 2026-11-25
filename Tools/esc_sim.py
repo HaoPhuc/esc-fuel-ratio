@@ -3,8 +3,8 @@ Vectorised Python port of the MATLAB ESC fuel-ratio simulation.
 
 It reproduces, step for step, the loop in
     ESC/ESC.m, ESC/ESC_energy.m,
-    Safe-to-operate/STO-const_decay/STO_ESC_constdecay.m,
-    Optimal-to-operate/OTO_ESC_*.m
+    generators/STO_ESC_constdecay.m,
+    generators/OTO_ESC_*.m
 but simulates many parameter sets at once (one NumPy array element per run),
 so a 200 000-run sweep takes minutes instead of hours.
 
@@ -36,6 +36,7 @@ DT, T_END = 0.01, 100.0      # time step and run length [s]
 CONV_FRACTION = 0.05         # r_hat must be within 5 % of r_ideal ...
 CONV_HOLD_TIME = 5.0         # ... for 5 s to count as converged
 DECAY_RATE_SUM = 1 / TAU_D + 1 / TAU_T   # kept constant in the drifting plant
+DRIFT_SHAPES = {'exp': 0, 'linear': 1, 'step': 2, 'sine': 3}   # codes of the drift_shape option
 
 
 def _as_runs(*arrays):
@@ -44,9 +45,17 @@ def _as_runs(*arrays):
     return [np.array(x, dtype=float) for x in arrs]
 
 
+def drift_codes(drift_shape):
+    """drift_shape as numbers: a name ('exp', 'linear', 'step', 'sine'), a list of names or codes 0-3."""
+    shape = np.asarray(drift_shape)
+    if shape.dtype.kind in 'US':
+        return np.vectorize(DRIFT_SHAPES.__getitem__, otypes=[float])(shape)
+    return shape.astype(float)
+
+
 def simulate(optimizer_gain, dither_amplitude, dither_frequency, *,
-             tau_D=TAU_D, tau_T=TAU_T,
-             r_ideal_0=None, lambda_r_ideal=0.0,
+             tau_D=TAU_D, tau_T=TAU_T, tau_scale=1.0,
+             r_ideal_0=None, lambda_r_ideal=0.0, drift_shape='exp', drift_size=0.0, drift_time=None,
              r_hat_0=0.0, use_esc=True, fixed_ratio=0.5,
              dither_phase=0.0, initial_ratio=INITIAL_RATIO, mirror_plant=False,
              steady_start=None, ratio_map=None, track=False, settle_tolerances=(0.01, 0.02),
@@ -59,6 +68,16 @@ def simulate(optimizer_gain, dither_amplitude, dither_frequency, *,
       * drifting plant: pass r_ideal_0 (and lambda_r_ideal); then
         r_ideal(t) = r_ideal_0 * exp(lambda t), alpha_T = r_ideal * A,
         alpha_D = (1 - r_ideal) * A, with A = 1/1.71 + 1/1.66 (as in the OTO scripts).
+
+    Options added for the crossed plant x ESC sweep (the defaults change nothing)
+      * tau_scale: both confinement times are multiplied by this factor (scalar or one per run),
+        so the plasma reacts slower (> 1) or faster (< 1); r_ideal does not change.
+      * drift_shape, drift_size (D), drift_time (T_d, default tend), drifting plant only, one per run allowed:
+          'exp'    r_ideal(t) = r_ideal_0 exp(lambda t)               (default; D and T_d are not used)
+          'linear' r_ideal(t) = r_ideal_0 + D t / T_d                  (D = change after T_d)
+          'step'   r_ideal(t) = r_ideal_0 + D for t >= T_d, else r_ideal_0
+          'sine'   r_ideal(t) = r_ideal_0 + D sin(2 pi t / T_d)        (T_d = period)
+        lambda_r_ideal still multiplies r_ideal_0 by exp(lambda t) for the other shapes; use 0 there.
 
     Controller
       * use_esc=True : ESC with gain k, dither amplitude a, dither frequency f [Hz],
@@ -94,12 +113,28 @@ def simulate(optimizer_gain, dither_amplitude, dither_frequency, *,
       and, if return_traces, 'traces' with t, r, r_hat, nD, nT, P, r_ideal (time x runs).
     """
     drifting = r_ideal_0 is not None
+    if drift_time is None:
+        drift_time = tend
     if drifting:
-        k, a, f, r0, lam, rh0 = _as_runs(optimizer_gain, dither_amplitude, dither_frequency,
-                                         r_ideal_0, lambda_r_ideal, r_hat_0)
+        k, a, f, r0, lam, rh0, scale, shape, size, t_drift = _as_runs(
+            optimizer_gain, dither_amplitude, dither_frequency, r_ideal_0, lambda_r_ideal, r_hat_0,
+            tau_scale, drift_codes(drift_shape), drift_size, drift_time)
+        decay_rate_sum = DECAY_RATE_SUM / scale          # A of the drifting plant, one per run
+        shaped = bool(np.any(shape != 0))                 # any run with a linear, step or sine drift
+
+        def ideal_at(t_now):
+            """r_ideal of every run at time t_now (also used for the steady start)."""
+            value = r0 * np.exp(lam * t_now)
+            if shaped:
+                g = np.where(shape == 1, t_now / t_drift,
+                             np.where(shape == 2, (t_now >= t_drift).astype(float),
+                                      np.where(shape == 3, np.sin(2 * np.pi * t_now / t_drift), 0.0)))
+                value = value + size * g
+            return 1.0 - value if mirror_plant else value
     else:
-        k, a, f, tD, tT, rh0 = _as_runs(optimizer_gain, dither_amplitude, dither_frequency,
-                                        tau_D, tau_T, r_hat_0)
+        k, a, f, tD, tT, rh0, scale = _as_runs(optimizer_gain, dither_amplitude, dither_frequency,
+                                               tau_D, tau_T, r_hat_0, tau_scale)
+        tD, tT = tD * scale, tT * scale
     n_runs = k.size
     n_steps = int(round(tend / dt)) + 1
     t_vec = np.arange(n_steps) * dt
@@ -128,8 +163,8 @@ def simulate(optimizer_gain, dither_amplitude, dither_frequency, *,
     if steady_start is not None:
         # plasma already running at the ratio `steady_start`: total density n_ref, nothing changes in time
         if drifting:
-            ideal_0 = 1.0 - r0 if mirror_plant else r0
-            alpha_T0, alpha_D0 = ideal_0 * DECAY_RATE_SUM, (1 - ideal_0) * DECAY_RATE_SUM
+            ideal_0 = ideal_at(0.0)
+            alpha_T0, alpha_D0 = ideal_0 * decay_rate_sum, (1 - ideal_0) * decay_rate_sum
         else:
             alpha_T0, alpha_D0 = alpha_T, alpha_D
         source = N_REF / (steady_start / alpha_T0 + (1 - steady_start) / alpha_D0)   # total fuelling
@@ -163,11 +198,9 @@ def simulate(optimizer_gain, dither_amplitude, dither_frequency, *,
     for i in range(n_steps):
         t_now = t_vec[i]
         if drifting:
-            ideal = r0 * np.exp(lam * t_now)
-            if mirror_plant:
-                ideal = 1.0 - ideal
-            alpha_T = ideal * DECAY_RATE_SUM
-            alpha_D = (1 - ideal) * DECAY_RATE_SUM
+            ideal = ideal_at(t_now)
+            alpha_T = ideal * decay_rate_sum
+            alpha_D = (1 - ideal) * decay_rate_sum
             Ad_D, Ad_T = np.exp(-alpha_D * dt), np.exp(-alpha_T * dt)
             Bd_D, Bd_T = (1 - Ad_D) / alpha_D, (1 - Ad_T) / alpha_T
 
@@ -258,8 +291,10 @@ def simulate_in_chunks(*args, chunk=20000, progress=None, **kwargs):
     progress: if a text is given, one line is printed after every chunk (text, runs done, seconds).
     """
     import time
-    per_run_kw = {key: np.asarray(val, dtype=float) for key, val in kwargs.items()
-                  if key in ('tau_D', 'tau_T', 'r_ideal_0', 'lambda_r_ideal', 'r_hat_0') and np.ndim(val) > 0}
+    per_run_kw = {key: (drift_codes(val) if key == 'drift_shape' else np.asarray(val, dtype=float))
+                  for key, val in kwargs.items()
+                  if key in ('tau_D', 'tau_T', 'tau_scale', 'r_ideal_0', 'lambda_r_ideal', 'r_hat_0',
+                             'drift_shape', 'drift_size', 'drift_time') and np.ndim(val) > 0}
     # one entry per run for every positional argument, also when only the keyword arguments are arrays
     arrs = _as_runs(*args, *per_run_kw.values())[:len(args)]
     n = arrs[0].size

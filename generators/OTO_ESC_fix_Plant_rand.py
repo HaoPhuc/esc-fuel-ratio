@@ -26,6 +26,7 @@ HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(next(p for p in HERE.parents if (p / 'Tools' / 'esc_sim.py').exists()) / 'Tools'))
 import esc_sim as sim          # noqa: E402  (the simulation, checked against the MATLAB data sets)
 import esc_sweeps as sweeps    # noqa: E402  (random numbers and file output as in MATLAB)
+import esc_paths as paths      # noqa: E402  (where the data folder is)
 
 # ---- Batch sweep settings ----------------------------------------------------
 combinations = 100_000          # total random sets to test
@@ -54,7 +55,7 @@ def main():
         ('--dither-frequency', dither_frequency, 'dither frequency f [Hz]')])
     esc_set = f'{args.optimizer_gain:g}_{args.dither_amplitude:g}_{args.dither_frequency:g}'
     output = sweeps.output_path(
-        HERE, f'OTO-ESC_fix-{esc_set}-{sweeps.count_label(args.combinations)}shots-python.csv', args)
+        paths.data_folder('OTO-ESC_fix'), f'OTO-ESC_fix-{esc_set}-{sweeps.count_label(args.combinations)}shots-python.csv', args)
 
     # Ideal fuel ratio (randomized); one MATLAB trial calls rand() in this order
     u = sweeps.draw(sweeps.matlab_rng(args.seed, args.skip), args.combinations, ['r_ideal_0', 'lambda_r_ideal'])

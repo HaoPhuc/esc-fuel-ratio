@@ -26,6 +26,7 @@ HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(next(p for p in HERE.parents if (p / 'Tools' / 'esc_sim.py').exists()) / 'Tools'))
 import esc_sim as sim          # noqa: E402  (the simulation, checked against the MATLAB data sets)
 import esc_sweeps as sweeps    # noqa: E402  (random numbers and file output as in MATLAB)
+import esc_paths as paths      # noqa: E402  (where the data folder is)
 
 # ---- Batch sweep settings ----------------------------------------------------
 combinations = 100_000          # total random sets to test
@@ -53,7 +54,7 @@ def main():
         ('--lambda-r-ideal', lambda_r_ideal, 'drift rate of the ideal ratio [1/s]')])
     plant = f'{args.r_ideal_0:g}' + (f'_{args.lambda_r_ideal:g}' if args.lambda_r_ideal != 0 else '')
     output = sweeps.output_path(
-        HERE, f'OTO-Plant_fix-{plant}-{sweeps.count_label(args.combinations)}shots-python.csv', args)
+        paths.data_folder('OTO-Plant_fix'), f'OTO-Plant_fix-{plant}-{sweeps.count_label(args.combinations)}shots-python.csv', args)
 
     # Fixed-ratio energy (the plant is the same in every trial, so compute it once)
     energy_const = sim.simulate(1, 0.1, 1, r_ideal_0=args.r_ideal_0, lambda_r_ideal=args.lambda_r_ideal,

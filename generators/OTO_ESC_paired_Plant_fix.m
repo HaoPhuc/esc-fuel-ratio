@@ -32,7 +32,7 @@ addpath(fullfile(here, '..', 'Tools'));
 combinations = 40000;       % ESC parameter sets (each is run on every plant)
 seed = 0;                   % 0 = the random numbers of a freshly started MATLAB (rng('default'))
 plants_to_run = 1:8;        % indices in the plant list below
-output_folder = here;
+output_folder = esc_paths('OTO-paired');   % data/OTO-paired/
 overwrite = false;          % true: replace existing output files
 
 %% Plants: [r_ideal_0, lambda_r_ideal [1/s]];  r_ideal(t) = r_ideal_0 * exp(lambda_r_ideal * t)

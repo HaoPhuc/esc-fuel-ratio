@@ -9,7 +9,8 @@ results = table(Size = [0 11], ...
 %% Batch sweep settings
 combinations = 100000; % total random sets to test
 save_every = 50000; % add results to CSV every N combinations
-csv_filename = 'OTO-ESC_fix-1_0.2_6-100kshots.csv';
+addpath(fullfile(fileparts(mfilename('fullpath')), '..', 'Tools'));   % for esc_paths (the data folder)
+csv_filename = fullfile(esc_paths('OTO-ESC_fix'), 'OTO-ESC_fix-1_0.2_6-100kshots.csv');
 
 %% ESC parameters (constant for every trial — choose them here)
 optimizer_gain   = 1;

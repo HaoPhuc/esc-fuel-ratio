@@ -34,6 +34,7 @@ HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(next(p for p in HERE.parents if (p / 'Tools' / 'esc_sim.py').exists()) / 'Tools'))
 import esc_sim as sim          # noqa: E402
 import esc_sweeps as sweeps    # noqa: E402
+import esc_paths as paths      # noqa: E402  (where the data folder is)
 
 # ---- Batch sweep settings ----------------------------------------------------
 combinations = 40_000           # ESC parameter sets (each is run on every plant)
@@ -66,7 +67,7 @@ def main():
     parser.add_argument('--combinations', type=int, default=combinations)
     parser.add_argument('--seed', type=int, default=seed, help='random seed (0 = MATLAB default stream)')
     parser.add_argument('--plant', type=int, action='append', help='index in the plant list (default: all)')
-    parser.add_argument('--folder', default=str(HERE), help='folder for the CSV files')
+    parser.add_argument('--folder', default=str(paths.data_folder('OTO-paired')), help='folder for the CSV files')
     parser.add_argument('--overwrite', action='store_true', help='replace existing files')
     args = parser.parse_args()
     folder = Path(args.folder)

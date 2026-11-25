@@ -15,6 +15,7 @@ import pandas as pd
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from esc_sim import simulate_in_chunks
+from esc_paths import data_file
 
 ROOT = os.environ.get("ESC_REPO_ROOT", os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 N = int(sys.argv[1]) if len(sys.argv) > 1 else 5000
@@ -33,14 +34,14 @@ def compare(name, ref, sim, energy_col=None, sim_energy=None):
 
 
 # --- STO: constant plant, r_hat_0 = 0 ------------------------------------
-path = os.path.join(ROOT, "Safe-to-operate", "STO-const_decay", "STO-const_decay-200k.csv")
+path = data_file("STO-const_decay-200k.csv")
 ref = pd.read_csv(path).sample(N, random_state=0)
 sim = simulate_in_chunks(ref.optimizer_gain, ref.dither_amplitude, ref.dither_frequency, r_hat_0=0.0)
 compare("STO-const_decay-200k", ref, sim)
 
 # --- OTO: drifting plant, r_hat_0 = 0.5, ESC and fixed r = 0.5 ----------
 for fname in ["OTO-ESC-200k.csv", "OTO-ESC_fix-1_0.2_6-100kshots.csv", "OTO-Plant_fix-0.55_0.002-100kshots.csv"]:
-    ref = pd.read_csv(os.path.join(ROOT, "Optimal-to-operate", fname)).sample(N, random_state=0)
+    ref = pd.read_csv(data_file(fname)).sample(N, random_state=0)
     args = (ref.optimizer_gain, ref.dither_amplitude, ref.dither_frequency)
     plant = dict(r_ideal_0=ref.r_ideal_0.values, lambda_r_ideal=ref.lambda_r_ideal.values)
     sim = simulate_in_chunks(*args, r_hat_0=0.5, **plant)

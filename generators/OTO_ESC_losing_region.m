@@ -22,7 +22,7 @@ addpath(fullfile(here, '..', 'Tools'));
 
 %% What to run
 cases_to_run = 1:4;         % indices in the list of cases below
-output_folder = here;
+output_folder = esc_paths('OTO-ESC_fix');   % data/OTO-ESC_fix/
 overwrite = false;          % true: replace existing output files
 
 %% ESC set (the reference set of OTO-ESC_fix.ipynb)

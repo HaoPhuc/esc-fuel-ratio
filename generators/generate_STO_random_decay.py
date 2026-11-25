@@ -27,10 +27,11 @@ ROOT = next(p for p in [HERE] + [os.path.abspath(os.path.join(HERE, *[".."] * i)
             if os.path.isdir(os.path.join(p, "Tools")))
 sys.path.insert(0, os.path.join(ROOT, "Tools"))
 from esc_sim import simulate_in_chunks
+from esc_paths import data_folder
 
 N_RUNS = int(sys.argv[1]) if len(sys.argv) > 1 else 200_000
 SEED = int(sys.argv[2]) if len(sys.argv) > 2 else 2026
-OUT = os.path.join(HERE, f"STO-random_decay-{N_RUNS // 1000}k.csv")
+OUT = os.path.join(str(data_folder("STO-random_decay")), f"STO-random_decay-{N_RUNS // 1000}k.csv")
 
 rng = np.random.default_rng(SEED)
 optimizer_gain = 10 ** rng.uniform(np.log10(1e-5), np.log10(5), N_RUNS)

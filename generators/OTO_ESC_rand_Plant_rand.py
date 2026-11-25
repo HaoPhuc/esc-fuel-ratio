@@ -27,6 +27,7 @@ HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(next(p for p in HERE.parents if (p / 'Tools' / 'esc_sim.py').exists()) / 'Tools'))
 import esc_sim as sim          # noqa: E402  (the simulation, checked against the MATLAB data sets)
 import esc_sweeps as sweeps    # noqa: E402  (random numbers and file output as in MATLAB)
+import esc_paths as paths      # noqa: E402  (where the data folder is)
 
 # ---- Batch sweep settings ----------------------------------------------------
 combinations = 200_000          # total random sets to test
@@ -50,7 +51,7 @@ lambda_r_ideal_range = (-0.002, 0.002)   # [1/s]
 
 def main():
     args = sweeps.arguments(__doc__, combinations, seed)
-    output = sweeps.output_path(HERE, f'OTO-{sweeps.count_label(args.combinations)}shots-python.csv', args)
+    output = sweeps.output_path(paths.data_folder('OTO-ESC'), f'OTO-{sweeps.count_label(args.combinations)}shots-python.csv', args)
 
     # One MATLAB trial calls rand() in this order
     u = sweeps.draw(sweeps.matlab_rng(args.seed, args.skip), args.combinations,

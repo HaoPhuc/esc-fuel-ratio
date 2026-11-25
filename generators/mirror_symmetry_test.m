@@ -29,7 +29,7 @@ addpath(fullfile(here, '..', 'Tools'));
 n_runs = 10000;             % ESC parameter sets per pair
 pairs_to_run = 1:4;         % indices in the list of pairs below
 r_hat_0 = 0.5;              % as in the optimal-to-operate sweeps
-output = fullfile(here, 'OTO-mirror_symmetry_test-matlab.csv');
+output = fullfile(esc_paths('OTO-Plant_fix'), 'OTO-mirror_symmetry_test-matlab.csv');
 overwrite = false;          % true: replace an existing output file
 
 %% Mirror pairs: {name A, r_ideal_0 A, lambda A, file tag of A, name B, r_ideal_0 B, lambda B}
@@ -69,7 +69,7 @@ end
 for index = pairs_to_run
     [name_A, r0_A, lam_A, tag, name_B, r0_B, lam_B] = pairs{index, :};
     % ESC parameters: the first n_runs rows of plant A's sweep
-    sweep = readtable(fullfile(here, sprintf('OTO-Plant_fix-%s-100kshots.csv', tag)));
+    sweep = readtable(esc_paths('file', sprintf('OTO-Plant_fix-%s-100kshots.csv', tag)));
     k = sweep.optimizer_gain(1:n_runs);
     a = sweep.dither_amplitude(1:n_runs);
     f = sweep.dither_frequency(1:n_runs);

@@ -13,6 +13,7 @@ Use it from a notebook with
     esc.apply_style()
 
 To change how every plot in the repository looks, edit apply_style() and COLORS.
+Data files are read with read_data('<file name>'): the file is found anywhere under data/ (esc_paths.py).
 """
 from __future__ import annotations
 
@@ -24,6 +25,14 @@ import numpy as np
 import pandas as pd
 import seaborn as sns
 from cycler import cycler
+
+from esc_paths import DATA, ROOT, data_file, data_folder   # noqa: F401  (where the data are)
+
+
+def read_data(name, **kwargs):
+    """pandas.read_csv of a data file, found by its file name anywhere under data/ (esc_paths.data_file)."""
+    return pd.read_csv(data_file(name), **kwargs)
+
 
 # --------------------------------------------------------------------------
 # Model constants (same values as in the MATLAB scripts)

@@ -29,6 +29,7 @@ HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(next(p for p in HERE.parents if (p / 'Tools' / 'esc_sim.py').exists()) / 'Tools'))
 import esc_sim as sim          # noqa: E402
 import esc_sweeps as sweeps    # noqa: E402
+import esc_paths as paths      # noqa: E402  (where the data folder is)
 
 # ---- ESC set (the reference set of OTO-ESC_fix.ipynb) ---------------------------
 optimizer_gain = 1
@@ -56,7 +57,7 @@ start_ratio = 0.5               # steady start: the plasma has been running at t
 def main():
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument('--case', action='append', choices=list(cases), help='case to run (default: all)')
-    parser.add_argument('--folder', default=str(HERE), help='folder for the CSV files')
+    parser.add_argument('--folder', default=str(paths.data_folder('OTO-ESC_fix')), help='folder for the CSV files')
     parser.add_argument('--overwrite', action='store_true', help='replace existing files')
     args = parser.parse_args()
 

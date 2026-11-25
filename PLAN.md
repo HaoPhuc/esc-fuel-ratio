@@ -1,12 +1,24 @@
+- done (25 Nov): repository reorganised around the two goals: 1_superiority/, 2_operating_region/, generators/, data/, exploration/, checks/
+- done: crossed sweep instead of the 200k random sweeps: 2,005 ESC settings on 600 plants in seven families, fixed seeds, Python and MATLAB generators (generators/OTO_ESC_crossed.*)
+- done: goal 1 notebook, ESC against a fixed r = 0.5: tuned ESC wins on ~99 % of plants, losses of tenths of a unit, break-even distance sqrt(L_dith / 13,225)
+- done: goal 2 notebook, safe and optimal window: lambda_avg T >= 40, lambda_avg / 2f <= 0.2, L_dith <= 0.1; same shape for every plant family in normalised coordinates
+- done: two-peak question: both peaks on every plant, from log-uniform k and the S-curve
+- done: time-step check for JJ (checks/ESC_time_step_check.ipynb and goal 2 notebook, section 5)
+- done: both formulas tested on the crossed data: dither loss (shortfall on the r_ideal = 0.5 plant / L_dith about 1.03) and lambda_avg (settled share against lambda_avg T nearly the same for all plant time scales)
+- done: above ~2 Hz the safe region reaches smaller gains than lambda_avg predicts: the 100 Hz sampled loop is faster than the continuous one, as Re{G(z)H(z)} predicts
+- done: received ratio, not r_hat, to judge convergence (settling times in the paired and crossed sweeps)
+- done: steady start instead of the 25 % deuterium-rich start (paired and crossed sweeps)
+- done: wins, losses and net gain instead of choose_ESC alone (goal 1 notebook)
+- run Tools/validate_matlab_ports.m once in MATLAB (the new MATLAB code was never run; every line should end in ok)
+- ask JJ: model a 100 Hz digital ESC (dt = 0.01) or a continuous one? at 10 Hz the 100 Hz loop is up to 1.7 times faster and the region edges move by up to 0.14 decades
+- ask JJ: which plant range is realistic? the gain is ~26 units per run for 0.45-0.55 drifting plants but below 1 unit within 0.01 of 0.5
+- agree the window thresholds (settle within 30 s, 90 % of the possible gain, margin floor 2 units) and how to treat sine-wave plants
+- repeat the goal 1 analysis for the starts at 0.3 and 0.7
+- replace the fixed lambda_avg < 3 edge of well_tuned by lambda_avg / 2f, which is where the failures start
+- derive a stability bound for the loop with its filters to explain the upper edge at lambda_avg / 2f of about 0.65
 - check nobody has published ESC (or another model-free optimiser) for the D-T fuel mix: LITERATURE_CHECK.md, closest is Boyer & Schuster (online burn optimisation for ITER)
 - ask supervisor: where the idea came from, earlier DIFFER/TU/e work, is a paper realistic, who are co-authors
-- supervisor checks the lambda_avg and dither-loss derivations (report sections 3.2, 3.3)
-- test both formulas on single runs (convergence time, ripple against k, a, f)
-- above ~2 Hz the safe region reaches smaller gains than lambda_avg predicts, find out why
-- replace the 200k random sweeps by a small designed sweep (grid or Latin hypercube) with fixed seeds and confidence intervals
-- use the received ratio, not r_hat, to judge convergence everywhere (already done in the paired sweep)
-- put a margin on choose_ESC so near-equal runs don't decide it
-- start from steady state instead of the 25 % deuterium-rich start
+- supervisor checks the lambda_avg and dither-loss derivations (report sections 3.2, 3.3); the crossed data agree with both (shortfall / L_dith about 1.03 at r_ideal = 0.5)
 - get the supervisor's function between requested and received fuel ratio, plug it into esc_sim (ratio_map)
 - add measurement noise before choosing a dither amplitude (small amplitudes only look good without noise)
 - let the filter cut-offs vary independently of the dither frequency

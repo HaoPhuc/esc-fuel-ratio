@@ -33,6 +33,7 @@ HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(next(p for p in HERE.parents if (p / 'Tools' / 'esc_sim.py').exists()) / 'Tools'))
 import esc_sim as sim          # noqa: E402
 import esc_sweeps as sweeps    # noqa: E402
+import esc_paths as paths      # noqa: E402  (where the data folder is)
 
 # ---- ESC sets: (name, optimizer gain k, dither amplitude a, dither frequency f [Hz]) --------------------
 # Picked in OTO-Plant_fix-paired.ipynb among the sets with eta >= 0.9 on all eight plants that settle within
@@ -71,7 +72,7 @@ def main():
     parser.add_argument('--set', type=int, action='append', help='index in the list of ESC sets')
     parser.add_argument('--rows', default=None, help='only these plants, for example 0:25000')
     parser.add_argument('--output', default=None, help='CSV file (only with one --set or --references)')
-    parser.add_argument('--folder', default=str(HERE), help='folder for the CSV files')
+    parser.add_argument('--folder', default=str(paths.data_folder('OTO-ESC_fix')), help='folder for the CSV files')
     parser.add_argument('--overwrite', action='store_true', help='replace existing files')
     args = parser.parse_args()
     jobs = (['references'] if args.references else []) + (args.set or [])

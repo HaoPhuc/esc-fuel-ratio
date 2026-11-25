@@ -35,6 +35,7 @@ import pandas as pd
 HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE.parent / 'Tools'))
 import esc_sim as sim  # noqa: E402
+import esc_paths as paths  # noqa: E402  (where the data folder is)
 
 N_RUNS = 10000
 R_HAT_0 = 0.5            # as in the optimal-to-operate sweeps
@@ -80,13 +81,13 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(description=__doc__.split('\n\n')[0])
     parser.add_argument('--pairs', type=int, nargs='*', default=list(range(len(PAIRS))),
                         help='indices of the mirror pairs to simulate (default: all)')
-    parser.add_argument('--output', default=str(HERE / 'OTO-mirror_symmetry_test.csv'))
+    parser.add_argument('--output', default=str(paths.data_folder('OTO-Plant_fix') / 'OTO-mirror_symmetry_test.csv'))
     args = parser.parse_args()
 
     frames = []
     for i in args.pairs:
         (name_a, r0_a, lam_a, tag), (name_b, r0_b, lam_b) = PAIRS[i]
-        df = pd.read_csv(HERE / f'OTO-Plant_fix-{tag}-100kshots.csv',
+        df = pd.read_csv(paths.data_file(f'OTO-Plant_fix-{tag}-100kshots.csv'),
                          usecols=['optimizer_gain', 'dither_amplitude', 'dither_frequency'], nrows=N_RUNS)
         esc = df.copy()
         df.insert(0, 'plant_B', name_b)

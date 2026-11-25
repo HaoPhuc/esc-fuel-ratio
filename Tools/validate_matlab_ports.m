@@ -5,18 +5,19 @@
 %   C. OTO-ESC_chosen-*-100k.csv            made by OTO_ESC_chosen_Plant_rand.py
 %   D. OTO-losing_region-*.csv              made by OTO_ESC_losing_region.py
 %   E. OTO-mirror_symmetry_test.csv         made by mirror_symmetry_test.py
+%   F. OTO-crossed-*.csv                    made by OTO_ESC_crossed.py (also checks the drift shapes and
+%                                           time scales of esc_sim.m)
 % For every quantity it prints the largest difference and the share of rows that agree. The random
 % parameters (A to C) must agree exactly (to the rounding of the CSV files); the results should agree
 % for at least 99 % of the rows: a few runs per thousand are sensitive to rounding errors (large gain,
 % small dither amplitude) and can end up a little differently in any two programs.
-% Run time: about one minute.
+% Run time: about two minutes.
 
 clear; clc;
 here = fileparts(mfilename('fullpath'));
 addpath(here);
-oto = fullfile(here, '..', 'Optimal-to-operate');
 n_rows = 200;
-read = @(name) readtable(fullfile(oto, name), 'VariableNamingRule', 'preserve');
+read = @(name) readtable(esc_paths('file', name), 'VariableNamingRule', 'preserve');   % found under data/
 report = {};
 
 %% A. original MATLAB data set (plants and ESC energies)
@@ -119,6 +120,46 @@ for p = 1:size(pairs, 1)
     end
 end
 
+%% F. crossed sweep (Python): quasi-random ESC sets, random plants, and some rows of seven blocks
+sets = read('OTO-crossed-sets.csv'); plants = read('OTO-crossed-plants.csv'); refs = read('OTO-crossed-references.csv');
+n_q = height(sets) - 5;                                % the first five sets are the chosen ones
+kaf = [10 .^ (log10(1e-3) + diff(log10([1e-3, 5])) * halton(n_q, 2)); 0.005 + diff([0.005, 0.6]) * halton(n_q, 3); ...
+       0.5 + diff([0.5, 10]) * halton(n_q, 5)];
+report = check(report, 'F: crossed tables', 'ESC sets (quasi-random stream)', kaf, ...
+               [sets.optimizer_gain(6:end); sets.dither_amplitude(6:end); sets.dither_frequency(6:end)], 'rel', 1e-12);
+is_random = strcmp(plants.family, 'random');
+esc_rng(0, 0);
+u = esc_draw(sum(is_random), 2);
+report = check(report, 'F: crossed tables', 'random plants (random stream)', ...
+               [0.45 + diff([0.45, 0.55]) * u(:, 1); -0.002 + diff([-0.002, 0.002]) * u(:, 2)], ...
+               [plants.r_ideal_0(is_random); plants.lambda_r_ideal(is_random)], 'rel', 1e-12);
+for block = {'linear', 'step', 'sine', 'timescale', 'random1', 'from0.7', 'dt0.002'}
+    name = block{1};
+    ref = read(sprintf('OTO-crossed-%s.csv', name));
+    ref = ref(unique([(1:60)'; find(ref.set == ref.set(1))]), :);   % 60 sets on the first plant, one set on every plant
+    pl = plants(ref.plant + 1, :); st = sets(ref.set + 1, :);
+    rf = refs(strcmp(refs.block, name), :);
+    [~, where] = ismember(ref.plant, rf.plant);
+    start = 0.5; step = 0.01;
+    if startsWith(name, 'from'), start = str2double(name(5:end)); end
+    if strcmp(name, 'dt0.002'), step = 0.002; end
+    opts = {'RIdeal0', pl.r_ideal_0, 'LambdaRIdeal', pl.lambda_r_ideal, 'DriftShape', pl.drift_shape, ...
+            'DriftSize', pl.drift_size, 'DriftTime', pl.drift_time, 'TauScale', pl.tau_scale, 'SteadyStart', start, 'Dt', step};
+    out = esc_sim(st.optimizer_gain, st.dither_amplitude, st.dither_frequency, 'RHat0', start, 'Track', true, opts{:});
+    fixed = esc_sim(0, 0, 1, 'UseESC', false, opts{:});
+    ideal = esc_sim(0, 0, 1, 'UseESC', false, 'FixedRatio', 'ideal', opts{:});
+    label = ['F: crossed ' name];
+    report = check(report, label, 'energy_const, energy_ideal', [fixed.energy; ideal.energy], ...
+                   [rf.energy_const(where); rf.energy_ideal(where)], 'rel', 1e-9);
+    report = check(report, label, 'energy_ESC', out.energy, rf.energy_const(where) + ref.energy_gain, 'rel', 1e-9);
+    report = check(report, label, 'converged', double(out.converged), ref.converged, 'abs', 0);
+    report = check(report, label, 'tracking_error, _late', [out.tracking_error; out.tracking_error_late], ...
+                   [ref.tracking_error; ref.tracking_error_late], 'rel', 1e-5);   % stored with 6 digits
+    report = check(report, label, 'settling_time_0.01, _0.02', out.settling_time(:), ...
+                   [ref.('settling_time_0.01'); ref.('settling_time_0.02')], 'abs', step + 0.001);
+    report = check(report, label, 'convergence_time', out.convergence_time, ref.convergence_time, 'abs', step + 0.001);
+end
+
 %% Summary
 fprintf('\n%-32s %-34s %6s %14s %10s  %s\n', 'check', 'quantity', 'values', 'largest diff', 'agree', 'result');
 n_fail = 0;
@@ -142,6 +183,14 @@ end
 
 
 %% Local functions
+function v = halton(n, base)
+% points 1..n of the van der Corput sequence in `base` (as in OTO_ESC_crossed.m)
+i = (1:n)'; scale = ones(n, 1); v = zeros(n, 1);
+while any(i > 0)
+    scale = scale / base; v = v + scale .* mod(i, base); i = floor(i / base);
+end
+end
+
 function report = check(report, label, quantity, value, reference, kind, tolerance)
 % Compare two vectors. 'rel': relative difference, 'abs': absolute difference. NaN equals NaN.
 value = double(value(:)); reference = double(reference(:));
